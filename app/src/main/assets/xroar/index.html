@@ -1,0 +1,2543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>XRoar Android</title>
+<script>
+    (function() {
+        var mode = "system";
+        try {
+            if (typeof AndroidBridge !== "undefined" && typeof AndroidBridge.getDisplayMode === "function") {
+                mode = AndroidBridge.getDisplayMode() || "system";
+            }
+        } catch (_error) {
+        }
+        if (mode !== "light" && mode !== "dark" && mode !== "system") {
+            try {
+                mode = window.localStorage.getItem("xroar.displayThemeMode") || "system";
+            } catch (_error) {
+                mode = "system";
+            }
+        }
+        var resolved = mode === "light" || mode === "dark"
+            ? mode
+            : ((window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light");
+        document.documentElement.dataset.displayTheme = resolved === "light" ? "light" : "dark";
+        document.documentElement.dataset.displayThemeMode = mode === "light" || mode === "dark" ? mode : "system";
+    })();
+</script>
+<link rel="stylesheet" href="xroar-wasm.css">
+<script src="software.js"></script>
+</head>
+<body>
+<nav class="top-bar" aria-label="App controls">
+    <div class="menu-anchor">
+        <button
+            id="menu-toggle-button"
+            class="button top-action-button menu-toggle-button"
+            type="button"
+            aria-label="Open navigation menu"
+            aria-expanded="false"
+            aria-controls="page-menu"
+            onclick="togglePageMenu()"
+        >&#9776;</button>
+        <div id="page-menu" class="page-menu hidden" aria-label="Pages">
+            <button id="menu-emulator" class="page-menu-item active" type="button" onclick="showPage('emulator')">Screen</button>
+            <button id="menu-media" class="page-menu-item" type="button" onclick="showPage('media')">Media</button>
+            <button id="menu-config" class="page-menu-item" type="button" onclick="showPage('config')">Config</button>
+            <button id="menu-settings" class="page-menu-item" type="button" onclick="showPage('settings')">Settings</button>
+            <button id="menu-info" class="page-menu-item" type="button" onclick="showPage('info')">Info</button>
+            <button id="menu-about" class="page-menu-item" type="button" onclick="showPage('about')">About</button>
+        </div>
+    </div>
+    <div class="top-actions">
+        <button id="input-toggle-button" class="button top-action-button" onclick="toggleInputMode()">Gamepad</button>
+        <button class="button top-action-button" onclick="wasm_soft_reset()">Soft Reset</button>
+        <button class="button top-action-button" onclick="wasm_hard_reset()">Hard Reset</button>
+    </div>
+</nav>
+<main class="shell">
+    <section id="page-emulator" class="page-card active">
+        <section id="display-panel" class="canvas-panel" onclick="toggleInputMode()">
+            <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+        </section>
+
+        <section id="gamepad-panel" class="panel gamepad-panel">
+            <div class="gamepad-layout">
+                <div class="stick-wrap">
+                    <div id="joystick-surface" class="joystick-surface" aria-label="Movement circle">
+                        <div class="joystick-range" aria-hidden="true"></div>
+                        <div class="joystick-center" aria-hidden="true"></div>
+                        <div id="joystick-thumb" class="joystick-thumb" aria-hidden="true"></div>
+                    </div>
+                </div>
+                <div class="action-pad" aria-label="Action buttons">
+                    <button class="gamepad-button action-fire action-fire-primary" type="button" data-button="0">Fire 1</button>
+                    <button class="gamepad-button action-fire action-fire-secondary" type="button" data-button="1">Fire 2</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="keyboard-panel" class="panel keyboard-panel hidden">
+            <div id="keyboard" class="keyboard"></div>
+            <div class="keyboard-keywords">
+                <div class="keyboard-keywords-label">Keywords</div>
+                <div id="keyboard-keyword-bar" class="keyboard-keyword-bar" aria-label="Keyword bar"></div>
+            </div>
+        </section>
+    </section>
+
+    <section id="page-media" class="page-card hidden">
+        <section class="panel quick-loads">
+            <div class="panel-header">
+                <h2>Quick Load</h2>
+                <p>Use auto-detect for carts, ROMs, snapshots, or binaries.</p>
+            </div>
+            <div class="button-grid">
+                <label class="button"><input type="file" onchange="file_input_onload(this, load_type.load, 0)">Load...</label>
+                <label class="button"><input type="file" onchange="file_input_onload(this, load_type.run, 0)">Run...</label>
+                <label class="button"><input type="file" onchange="file_input_onload(this, load_type.run, 0)">Cartridge...</label>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <h2>Media</h2>
+                <p>Insert disks, tapes, and hard disk images.</p>
+            </div>
+
+            <div class="media-grid">
+                <div class="media-card">
+                    <h3>Drive 1</h3>
+                    <div class="card-actions">
+                        <button class="button" onclick="wasm_new_disk(0)">New</button>
+                        <button class="button" onclick="wasm_eject_disk(0)">Eject</button>
+                        <label class="button"><input type="file" onchange="file_input_onload(this, load_type.disk, 0)">Insert</label>
+                    </div>
+                    <div id="disk0" class="filename"></div>
+                </div>
+
+                <div class="media-card">
+                    <h3>Drive 2</h3>
+                    <div class="card-actions">
+                        <button class="button" onclick="wasm_new_disk(1)">New</button>
+                        <button class="button" onclick="wasm_eject_disk(1)">Eject</button>
+                        <label class="button"><input type="file" onchange="file_input_onload(this, load_type.disk, 1)">Insert</label>
+                    </div>
+                    <div id="disk1" class="filename"></div>
+                </div>
+
+                <div class="media-card">
+                    <h3>Drive 3</h3>
+                    <div class="card-actions">
+                        <button class="button" onclick="wasm_new_disk(2)">New</button>
+                        <button class="button" onclick="wasm_eject_disk(2)">Eject</button>
+                        <label class="button"><input type="file" onchange="file_input_onload(this, load_type.disk, 2)">Insert</label>
+                    </div>
+                    <div id="disk2" class="filename"></div>
+                </div>
+
+                <div class="media-card">
+                    <h3>Drive 4</h3>
+                    <div class="card-actions">
+                        <button class="button" onclick="wasm_new_disk(3)">New</button>
+                        <button class="button" onclick="wasm_eject_disk(3)">Eject</button>
+                        <label class="button"><input type="file" onchange="file_input_onload(this, load_type.disk, 3)">Insert</label>
+                    </div>
+                    <div id="disk3" class="filename"></div>
+                </div>
+
+                <div class="media-card">
+                    <h3>Tape</h3>
+                    <div class="card-actions">
+                        <button id="tape_play" class="button" onclick="wasm_set_int('tape_playing', 1, 1)">Play</button>
+                        <button id="tape_pause" class="button hidden" onclick="wasm_set_int('tape_playing', 0, 1)">Pause</button>
+                        <button class="button" onclick="wasm_eject_tape()">Eject</button>
+                        <label class="button"><input type="file" onchange="file_input_onload(this, load_type.tape, 0)">Insert</label>
+                    </div>
+                    <div id="tape" class="filename"></div>
+                </div>
+
+                <div class="media-card">
+                    <h3>HD 0</h3>
+                    <div class="card-actions">
+                        <label class="button"><input type="file" onchange="file_input_onload(this, load_type.hd, 0)">Attach</label>
+                    </div>
+                    <div id="hd0" class="filename"></div>
+                </div>
+
+                <div class="media-card">
+                    <h3>HD 1</h3>
+                    <div class="card-actions">
+                        <label class="button"><input type="file" onchange="file_input_onload(this, load_type.hd, 1)">Attach</label>
+                    </div>
+                    <div id="hd1" class="filename"></div>
+                </div>
+            </div>
+        </section>
+
+    </section>
+
+    <section id="page-config" class="page-card hidden">
+        <section class="panel">
+            <div class="panel-header">
+                <h2>Startup Hardware</h2>
+                <p>Choose common XRoar startup options. These are saved locally and applied after the emulator reloads.</p>
+            </div>
+            <div class="hardware-grid">
+                <label>
+                    <span>Machine</span>
+                    <select id="config-machine" onchange="setConfiguredMachine(this.value)">
+                        <option value="">Auto-detect from imported ROMs</option>
+                        <option value="dragon32">Dragon 32</option>
+                        <option value="dragon64">Dragon 64</option>
+                        <option value="dragon200e">Dragon 200-E</option>
+                        <option value="dragonpro">Dragon Professional</option>
+                        <option value="coco">Tandy CoCo</option>
+                        <option value="cocous">Tandy CoCo (NTSC)</option>
+                        <option value="coco2b">Tandy CoCo 2B</option>
+                        <option value="coco2bus">Tandy CoCo 2B (NTSC, T1)</option>
+                        <option value="coco3">Tandy CoCo 3</option>
+                        <option value="coco3p">Tandy CoCo 3 (PAL)</option>
+                        <option value="mc10">Tandy MC-10</option>
+                    </select>
+                </label>
+                <label>
+                    <span>RAM</span>
+                    <select id="config-ram" onchange="setConfiguredRam(this.value)">
+                        <option value="">Machine default</option>
+                        <option value="4">4 KB</option>
+                        <option value="16">16 KB</option>
+                        <option value="32">32 KB</option>
+                        <option value="64">64 KB</option>
+                        <option value="128">128 KB</option>
+                        <option value="512">512 KB</option>
+                        <option value="1024">1024 KB</option>
+                        <option value="2048">2048 KB</option>
+                    </select>
+                </label>
+                <label>
+                    <span>VDG Chip</span>
+                    <select id="config-vdg-type" onchange="setConfiguredVdgType(this.value)">
+                        <option value="">Machine default</option>
+                        <option value="6847">MC6847</option>
+                        <option value="6847t1">MC6847T1</option>
+                        <option value="gime1986">GIME 1986</option>
+                        <option value="gime1987">GIME 1987</option>
+                    </select>
+                </label>
+            </div>
+            <div class="button-grid">
+                <button class="button" type="button" onclick="applyConfiguredEmulatorSettings()">Apply And Reload</button>
+                <button class="button" type="button" onclick="resetConfiguredEmulatorSettings()">Reset To Auto</button>
+            </div>
+            <div id="config-selection-summary" class="filename rom-library">Using automatic hardware detection from imported ROMs.</div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <h2>ROM Library</h2>
+                <p>Import a folder of firmware ROMs from Android storage so XRoar can boot machines and cartridges.</p>
+            </div>
+            <div class="button-grid">
+                <button class="button" onclick="pickRomFolder()">Import ROM Folder</button>
+                <button class="button" onclick="refreshRomInventory()">Refresh List</button>
+                <button class="button" onclick="clearRomLibrary()">Clear Library</button>
+            </div>
+            <div id="rom-library" class="filename rom-library">No ROMs imported yet.</div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <h2>XRoar Config</h2>
+                <p>Import an `xroar.conf` style config file and preload it before the emulator starts.</p>
+            </div>
+            <div class="button-grid">
+                <button class="button" onclick="pickConfigFile()">Import Config</button>
+                <button class="button" onclick="clearConfigFile()">Clear Config</button>
+                <button class="button" onclick="refreshConfigStatus()">Refresh Status</button>
+            </div>
+            <div id="config-library" class="filename rom-library">No imported config file.</div>
+        </section>
+    </section>
+
+    <section id="page-settings" class="page-card hidden">
+        <section class="panel">
+            <div class="panel-header">
+                <h2>Display</h2>
+                <p>Choose whether the app uses the light theme, dark theme, or follows the Android system setting.</p>
+            </div>
+            <div class="hardware-grid">
+                <label>
+                    <span>Theme</span>
+                    <select id="display-theme-mode" onchange="setDisplayThemeMode(this.value)">
+                        <option value="system">System</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                    </select>
+                </label>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <h2>Controls</h2>
+                <p>Choose whether the on-screen joystick snaps back to center or stays where you leave it.</p>
+            </div>
+            <div class="hardware-grid">
+                <label>
+                    <span>Joystick return</span>
+                    <select id="joystick-return-mode" onchange="setJoystickReturnMode(this.value)">
+                        <option value="self-center">Self-center</option>
+                        <option value="free">Free</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Fire buttons</span>
+                    <select id="fire-button-mode" onchange="setFireButtonMode(this.value)">
+                        <option value="two">Two buttons</option>
+                        <option value="one">One button</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Gamepad buttons side</span>
+                    <select id="gamepad-side-mode" onchange="setGamepadSideMode(this.value)">
+                        <option value="right">Right side</option>
+                        <option value="left">Left side</option>
+                    </select>
+                </label>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <h2>Keyboard Keywords</h2>
+                <p>Add more keywords to the keyboard bar. Tapping a keyword types it directly into XRoar.</p>
+            </div>
+            <div class="keyword-settings">
+                <div class="keyword-add-row">
+                    <input id="keyword-input" type="text" placeholder="Add keyword">
+                    <button class="button" type="button" onclick="addCustomKeywordFromSettings()">Add</button>
+                </div>
+                <div id="keyword-library" class="keyword-library">Custom keywords: none.</div>
+            </div>
+        </section>
+    </section>
+
+    <section id="page-about" class="page-card hidden">
+        <section class="panel">
+            <div class="panel-header">
+                <h2>About</h2>
+                <p>This Android app packages the XRoar emulator with a touch-friendly interface.</p>
+            </div>
+            <div class="about-copy">
+                <p>XRoar is the Dragon and Tandy 8-bit computer emulator project by Ciaran Anscomb.</p>
+                <p>Credit and thanks go to the original XRoar project for the emulator core used here.</p>
+                <p>Official project site: https://www.6809.org.uk/xroar/</p>
+            </div>
+            <div class="button-grid">
+                <a class="button" href="https://www.6809.org.uk/xroar/" target="_blank" rel="noopener noreferrer">Open XRoar Site</a>
+            </div>
+        </section>
+    </section>
+
+    <section id="page-info" class="page-card hidden">
+        <section class="panel">
+            <div class="panel-header">
+                <h2>Info</h2>
+                <p>Quick start help for Android XRoar.</p>
+            </div>
+            <div class="about-copy">
+                <p>1. First import your own ROM files. Open Config and use Import ROM Folder. XRoar needs your firmware ROMs before most machines will boot.</p>
+                <p>2. Return to the Screen page after the ROM import reload finishes. The emulator display is the main home page.</p>
+                <p>3. Use Media to load software. You can insert disks, tapes, hard disk images, or use Quick Load for files that XRoar can auto-detect.</p>
+                <p>4. Use the on-screen keyboard or gamepad on the home screen depending on what the software expects.</p>
+                <p>5. If needed, use Soft Reset or Hard Reset from the top bar to restart the emulated machine.</p>
+            </div>
+        </section>
+    </section>
+
+</main>
+
+<script>
+    var preloadedRomCount = 0;
+    var preloadedConfig = false;
+    var bootLogLines = [];
+    var runtimeMachineValue = "";
+    var runtimeMachineLabel = "";
+    var uiInitialised = false;
+    var runtimeBootRequested = false;
+    var virtualJoystickMapped = false;
+    var virtualAxes = [ 0, 0 ];
+    var joystickPointerId = null;
+    var stickyModifiers = {};
+    var lastImeValue = "";
+    var currentPage = "emulator";
+    var inputMode = "keyboard";
+    var hardwareKeyboardAvailable = false;
+    var joystickReturnMode = "self-center";
+    var fireButtonMode = "two";
+    var gamepadSideMode = "right";
+    var displayThemeMode = "system";
+    var configuredMachine = "";
+    var configuredRam = "";
+    var configuredVdgType = "";
+    var pendingTextQueue = [];
+    var textQueueRunning = false;
+    var joystickDebug = {
+        port0x: 32767,
+        port0y: 32767,
+        port1x: 32767,
+        port1y: 32767,
+        buttons: 0,
+    };
+
+    function bridgeAvailable() {
+        return typeof AndroidBridge !== "undefined";
+    }
+
+    function loadJoystickReturnMode() {
+        try {
+            const stored = window.localStorage.getItem("xroar.joystickReturnMode");
+            if (stored === "free" || stored === "self-center") {
+                joystickReturnMode = stored;
+            }
+        } catch (_error) {
+        }
+    }
+
+    function loadFireButtonMode() {
+        try {
+            const stored = window.localStorage.getItem("xroar.fireButtonMode");
+            if (stored === "one" || stored === "two") {
+                fireButtonMode = stored;
+            }
+        } catch (_error) {
+        }
+    }
+
+    function loadGamepadSideMode() {
+        try {
+            const stored = window.localStorage.getItem("xroar.gamepadSideMode");
+            if (stored === "left" || stored === "right") {
+                gamepadSideMode = stored;
+            }
+        } catch (_error) {
+        }
+    }
+
+    function resolveSystemTheme() {
+        return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+
+    function loadConfiguredMachine() {
+        try {
+            const stored = window.localStorage.getItem("xroar.config.machine") || "";
+            const valid = [
+                "",
+                "dragon32",
+                "dragon64",
+                "dragon200e",
+                "dragonpro",
+                "coco",
+                "cocous",
+                "coco2b",
+                "coco2bus",
+                "coco3",
+                "coco3p",
+                "mc10",
+            ];
+            configuredMachine = valid.indexOf(stored) >= 0 ? stored : "";
+        } catch (_error) {
+            configuredMachine = "";
+        }
+    }
+
+    function loadConfiguredRam() {
+        try {
+            const stored = window.localStorage.getItem("xroar.config.ram") || "";
+            const valid = [ "", "4", "16", "32", "64", "128", "512", "1024", "2048" ];
+            configuredRam = valid.indexOf(stored) >= 0 ? stored : "";
+        } catch (_error) {
+            configuredRam = "";
+        }
+    }
+
+    function loadConfiguredVdgType() {
+        try {
+            const stored = window.localStorage.getItem("xroar.config.vdgType") || "";
+            const valid = [ "", "6847", "6847t1", "gime1986", "gime1987" ];
+            configuredVdgType = valid.indexOf(stored) >= 0 ? stored : "";
+        } catch (_error) {
+            configuredVdgType = "";
+        }
+    }
+
+    function loadConfiguredEmulatorSettings() {
+        loadConfiguredMachine();
+        loadConfiguredRam();
+        loadConfiguredVdgType();
+    }
+
+    function configuredSelectionLabel(value, fallback) {
+        return value || fallback;
+    }
+
+    function refreshConfiguredEmulatorSettingsUi() {
+        const machineSelect = document.getElementById("config-machine");
+        const ramSelect = document.getElementById("config-ram");
+        const vdgSelect = document.getElementById("config-vdg-type");
+        const summary = document.getElementById("config-selection-summary");
+        if (machineSelect) {
+            machineSelect.value = configuredMachine;
+        }
+        if (ramSelect) {
+            ramSelect.value = configuredRam;
+        }
+        if (vdgSelect) {
+            vdgSelect.value = configuredVdgType;
+        }
+        if (!summary) {
+            return;
+        }
+        if (!configuredMachine && !configuredRam && !configuredVdgType) {
+            summary.textContent = "Using automatic hardware detection from imported ROMs.";
+            return;
+        }
+        const parts = [
+            "Machine: " + configuredSelectionLabel(configuredMachine, "auto"),
+            "RAM: " + configuredSelectionLabel(configuredRam ? configuredRam + " KB" : "", "default"),
+            "VDG: " + configuredSelectionLabel(configuredVdgType, "default"),
+        ];
+        summary.textContent = "Saved startup config. " + parts.join(" | ");
+    }
+
+    function setConfiguredMachine(value) {
+        configuredMachine = value || "";
+        try {
+            window.localStorage.setItem("xroar.config.machine", configuredMachine);
+        } catch (_error) {
+        }
+        refreshConfiguredEmulatorSettingsUi();
+    }
+
+    function setConfiguredRam(value) {
+        configuredRam = value || "";
+        try {
+            window.localStorage.setItem("xroar.config.ram", configuredRam);
+        } catch (_error) {
+        }
+        refreshConfiguredEmulatorSettingsUi();
+    }
+
+    function setConfiguredVdgType(value) {
+        configuredVdgType = value || "";
+        try {
+            window.localStorage.setItem("xroar.config.vdgType", configuredVdgType);
+        } catch (_error) {
+        }
+        refreshConfiguredEmulatorSettingsUi();
+    }
+
+    function applyConfiguredEmulatorSettings() {
+        setStatus("Saved startup config. Reloading emulator...", false);
+        setTimeout(function() {
+            window.location.reload();
+        }, 350);
+    }
+
+    function resetConfiguredEmulatorSettings() {
+        configuredMachine = "";
+        configuredRam = "";
+        configuredVdgType = "";
+        try {
+            window.localStorage.removeItem("xroar.config.machine");
+            window.localStorage.removeItem("xroar.config.ram");
+            window.localStorage.removeItem("xroar.config.vdgType");
+        } catch (_error) {
+        }
+        refreshConfiguredEmulatorSettingsUi();
+        setStatus("Cleared saved startup config. Reloading emulator...", false);
+        setTimeout(function() {
+            window.location.reload();
+        }, 350);
+    }
+
+    function applyResolvedDisplayTheme(resolvedMode) {
+        const root = document.documentElement;
+        root.dataset.displayTheme = resolvedMode === "light" ? "light" : "dark";
+    }
+
+    function loadDisplayThemeMode() {
+        let stored = "system";
+        if (bridgeAvailable() && typeof AndroidBridge.getDisplayMode === "function") {
+            try {
+                stored = AndroidBridge.getDisplayMode() || "system";
+            } catch (_error) {
+            }
+        }
+        if (stored !== "light" && stored !== "dark" && stored !== "system") {
+            try {
+                stored = window.localStorage.getItem("xroar.displayThemeMode") || "system";
+            } catch (_error) {
+                stored = "system";
+            }
+        }
+        displayThemeMode = stored === "light" || stored === "dark" ? stored : "system";
+        const select = document.getElementById("display-theme-mode");
+        if (select) {
+            select.value = displayThemeMode;
+        }
+        document.documentElement.dataset.displayThemeMode = displayThemeMode;
+        applyResolvedDisplayTheme(displayThemeMode === "system" ? resolveSystemTheme() : displayThemeMode);
+    }
+
+    function setDisplayThemeMode(mode) {
+        displayThemeMode = mode === "light" || mode === "dark" ? mode : "system";
+        const select = document.getElementById("display-theme-mode");
+        if (select && select.value !== displayThemeMode) {
+            select.value = displayThemeMode;
+        }
+        try {
+            window.localStorage.setItem("xroar.displayThemeMode", displayThemeMode);
+        } catch (_error) {
+        }
+        if (bridgeAvailable() && typeof AndroidBridge.setDisplayMode === "function") {
+            try {
+                AndroidBridge.setDisplayMode(displayThemeMode);
+            } catch (_error) {
+            }
+        }
+        document.documentElement.dataset.displayThemeMode = displayThemeMode;
+        applyResolvedDisplayTheme(displayThemeMode === "system" ? resolveSystemTheme() : displayThemeMode);
+    }
+
+    function bindDisplayThemeWatcher() {
+        if (!window.matchMedia) {
+            return;
+        }
+        const media = window.matchMedia("(prefers-color-scheme: dark)");
+        media.addEventListener("change", function() {
+            if (displayThemeMode === "system") {
+                applyResolvedDisplayTheme(resolveSystemTheme());
+            }
+        });
+    }
+
+    function setJoystickReturnMode(mode) {
+        joystickReturnMode = mode === "free" ? "free" : "self-center";
+        const select = document.getElementById("joystick-return-mode");
+        if (select && select.value !== joystickReturnMode) {
+            select.value = joystickReturnMode;
+        }
+        try {
+            window.localStorage.setItem("xroar.joystickReturnMode", joystickReturnMode);
+        } catch (_error) {
+        }
+    }
+
+    function applyFireButtonMode() {
+        const select = document.getElementById("fire-button-mode");
+        const actionPad = document.querySelector(".action-pad");
+        const primary = document.querySelector(".action-fire-primary");
+        const secondary = document.querySelector(".action-fire-secondary");
+        if (select && select.value !== fireButtonMode) {
+            select.value = fireButtonMode;
+        }
+        if (actionPad) {
+            actionPad.classList.toggle("single-fire", fireButtonMode === "one");
+        }
+        if (primary) {
+            primary.textContent = fireButtonMode === "one" ? "Fire" : "Fire 1";
+        }
+        if (secondary) {
+            secondary.classList.toggle("hidden", fireButtonMode === "one");
+        }
+    }
+
+    function setFireButtonMode(mode) {
+        fireButtonMode = mode === "one" ? "one" : "two";
+        try {
+            window.localStorage.setItem("xroar.fireButtonMode", fireButtonMode);
+        } catch (_error) {
+        }
+        applyFireButtonMode();
+    }
+
+    function applyGamepadSideMode() {
+        const select = document.getElementById("gamepad-side-mode");
+        const layout = document.querySelector(".gamepad-layout");
+        if (select && select.value !== gamepadSideMode) {
+            select.value = gamepadSideMode;
+        }
+        if (layout) {
+            layout.classList.toggle("left-handed", gamepadSideMode === "left");
+        }
+    }
+
+    function setGamepadSideMode(mode) {
+        gamepadSideMode = mode === "left" ? "left" : "right";
+        try {
+            window.localStorage.setItem("xroar.gamepadSideMode", gamepadSideMode);
+        } catch (_error) {
+        }
+        applyGamepadSideMode();
+    }
+
+    function togglePageMenu(forceOpen) {
+        const menu = document.getElementById("page-menu");
+        const toggle = document.getElementById("menu-toggle-button");
+        if (!menu || !toggle) {
+            return;
+        }
+        const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : menu.classList.contains("hidden");
+        menu.classList.toggle("hidden", !shouldOpen);
+        toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+    }
+
+    function closePageMenu() {
+        togglePageMenu(false);
+    }
+
+    function hasPhysicalKeyboard() {
+        if (!bridgeAvailable() || typeof AndroidBridge.hasPhysicalKeyboard !== "function") {
+            return false;
+        }
+        try {
+            return !!AndroidBridge.hasPhysicalKeyboard();
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    function triggerHapticTap() {
+        if (!bridgeAvailable() || typeof AndroidBridge.hapticTap !== "function") {
+            return;
+        }
+        AndroidBridge.hapticTap();
+    }
+
+    function getImportedRomList() {
+        if (!bridgeAvailable()) {
+            return [];
+        }
+        try {
+            return JSON.parse(AndroidBridge.getImportedRoms() || "[]");
+        } catch (error) {
+            return [];
+        }
+    }
+
+    function hasImportedConfigFile() {
+        return bridgeAvailable() && AndroidBridge.hasImportedConfig();
+    }
+
+    function detectBootProfile(roms) {
+        const romSet = new Set(roms.map(function(name) { return name.toLowerCase(); }));
+        if (romSet.has("coco3.rom")) {
+            return {
+                machine: "coco3",
+                label: "Tandy CoCo 3",
+                required: [ "coco3.rom" ],
+            };
+        }
+        if (romSet.has("coco3p.rom")) {
+            return {
+                machine: "coco3p",
+                label: "Tandy CoCo 3 (PAL)",
+                required: [ "coco3p.rom" ],
+            };
+        }
+        if (romSet.has("bas13.rom") || romSet.has("bas12.rom") || romSet.has("bas11.rom") || romSet.has("bas10.rom")) {
+            return {
+                machine: "coco2bus",
+                label: "Tandy CoCo 2B (NTSC,T1)",
+                required: [ "bas13.rom", "extbas11.rom" ],
+            };
+        }
+        if (romSet.has("d64_1.rom") && romSet.has("d64_2.rom")) {
+            return {
+                machine: "dragon64",
+                label: "Dragon 64",
+                required: [ "d64_1.rom", "d64_2.rom" ],
+            };
+        }
+        if (romSet.has("d32.rom")) {
+            return {
+                machine: "dragon32",
+                label: "Dragon 32",
+                required: [ "d32.rom" ],
+            };
+        }
+        if (romSet.has("mc10.rom")) {
+            return {
+                machine: "mc10",
+                label: "Tandy MC-10",
+                required: [ "mc10.rom" ],
+            };
+        }
+        return {
+            machine: "",
+            label: "No known boot profile detected",
+            required: [],
+        };
+    }
+
+    function buildBootPlan() {
+        const roms = getImportedRomList();
+        const configPresent = hasImportedConfigFile();
+        const profile = detectBootProfile(roms);
+        loadConfiguredEmulatorSettings();
+        const romSet = new Set(roms.map(function(name) { return name.toLowerCase(); }));
+        const missing = profile.required.filter(function(name) {
+            return !romSet.has(name.toLowerCase());
+        });
+        const selectedMachine = configuredMachine || profile.machine;
+        const args = [
+            "-rompath", ".",
+            "-no-vo-colour-killer",
+            "-no-disk-auto-os9",
+            "-ao-fragments", "3",
+            "-joy-wasm-virtual",
+            "-joy-right", "wasm",
+            "-joy-left", "wasm",
+            "-joy-virtual", "wasm",
+        ];
+        if (configuredVdgType) {
+            args.unshift(configuredVdgType);
+            args.unshift("-vdg-type");
+        }
+        if (configuredRam) {
+            args.unshift(configuredRam);
+            args.unshift("-ram");
+        }
+        if (selectedMachine) {
+            args.unshift(selectedMachine);
+            args.unshift("-default-machine");
+        }
+        if (configPresent) {
+            args.unshift("xroar.conf");
+            args.unshift("-c");
+        }
+        return {
+            roms: roms,
+            configPresent: configPresent,
+            profile: profile,
+            missing: missing,
+            selectedMachine: selectedMachine,
+            configuredMachine: configuredMachine,
+            configuredRam: configuredRam,
+            configuredVdgType: configuredVdgType,
+            args: args,
+        };
+    }
+
+    var bootPlan = buildBootPlan();
+
+    var Module = {
+        canvas: (function() { return document.getElementById("canvas"); })(),
+        initial_resize: 0,
+        is_fullscreen: 0,
+        arguments: bootPlan.args.slice(),
+        preInit: [ function() {
+            if (typeof ENV !== "undefined") {
+                ENV.XROAR_CONF_PATH = ".";
+            }
+        } ],
+        preRun: [ function() {
+            preloadedConfig = preloadImportedConfig();
+            preloadedRomCount = preloadImportedRoms();
+        } ],
+        print: function(text) {
+            appendBootLog("out", text);
+        },
+        printErr: function(text) {
+            appendBootLog("err", text);
+        },
+        onAbort: function(message) {
+            appendBootLog("abort", String(message), true);
+            setStatus("XRoar aborted during startup.", true);
+        },
+        quit: function(code, error) {
+            if (code !== 0) {
+                appendBootLog("exit", "Process exited with status " + code + ".", true);
+                if (error && error.message) {
+                    appendBootLog("exit", error.message, true);
+                }
+                setStatus("XRoar exited during startup.", true);
+            }
+        },
+    };
+
+    var drive_filename = [ null, null, null, null ];
+    var hd_filename = [ null, null ];
+
+    const load_type = {
+        load: 0,
+        run: 1,
+        tape: 2,
+        disk: 3,
+        text: 4,
+        hd: 5,
+    };
+
+    const keyboardRows = [
+        [
+            { label: "1", shiftedLabel: "!", scanCode: 0x1e, shiftReplacesLabel: true },
+            { label: "2", shiftedLabel: "\"", scanCode: 0x1f, shiftReplacesLabel: true },
+            { label: "3", shiftedLabel: "#", scanCode: 0x20, shiftReplacesLabel: true },
+            { label: "4", shiftedLabel: "$", scanCode: 0x21, shiftReplacesLabel: true },
+            { label: "5", shiftedLabel: "%", scanCode: 0x22, shiftReplacesLabel: true },
+            { label: "6", shiftedLabel: "&", scanCode: 0x23, shiftReplacesLabel: true },
+            { label: "7", shiftedLabel: "'", scanCode: 0x24, shiftReplacesLabel: true },
+            { label: "8", shiftedLabel: "(", scanCode: 0x25, shiftReplacesLabel: true },
+            { label: "9", shiftedLabel: ")", scanCode: 0x26, shiftReplacesLabel: true },
+            { label: "0", scanCode: 0x27, centerLabel: true },
+            { label: ":", shiftedLabel: "*", scanCode: 0x2d, dkeyCode: 0x0a, width: 0.95, shiftReplacesLabel: true },
+            { label: "-", shiftedLabel: "=", scanCode: 0x2e, dkeyCode: 0x0d, width: 1, shiftReplacesLabel: true },
+            { label: "BREAK", scanCode: 0x29, width: 1.8 },
+        ],
+        [
+            { label: "Q", scanCode: 0x14 },
+            { label: "W", scanCode: 0x1a },
+            { label: "E", scanCode: 0x08 },
+            { label: "R", scanCode: 0x15 },
+            { label: "T", scanCode: 0x17 },
+            { label: "Y", scanCode: 0x1c },
+            { label: "U", scanCode: 0x18 },
+            { label: "I", scanCode: 0x0c },
+            { label: "O", scanCode: 0x12 },
+            { label: "P", scanCode: 0x13 },
+            { label: "@", scanCode: 0x2f, dkeyCode: 0x10, width: 0.95 },
+        ],
+        [
+            { label: "A", scanCode: 0x04 },
+            { label: "S", scanCode: 0x16 },
+            { label: "D", scanCode: 0x07 },
+            { label: "F", scanCode: 0x09 },
+            { label: "G", scanCode: 0x0a },
+            { label: "H", scanCode: 0x0b },
+            { label: "J", scanCode: 0x0d },
+            { label: "K", scanCode: 0x0e },
+            { label: "L", scanCode: 0x0f },
+            { label: ";", shiftedLabel: "+", scanCode: 0x33, dkeyCode: 0x0b, width: 0.85, shiftReplacesLabel: true },
+            { label: "ENTER", scanCode: 0x28, width: 1.55 },
+        ],
+        [
+            { label: "SHIFT", scanCode: 0xe1, width: 1.75, sticky: true },
+            { label: "Z", scanCode: 0x1d },
+            { label: "X", scanCode: 0x1b },
+            { label: "C", scanCode: 0x06 },
+            { label: "V", scanCode: 0x19 },
+            { label: "B", scanCode: 0x05 },
+            { label: "N", scanCode: 0x11 },
+            { label: "M", scanCode: 0x10 },
+            { label: ",", shiftedLabel: "<", scanCode: 0x36, shiftReplacesLabel: true },
+            { label: ".", shiftedLabel: ">", scanCode: 0x37, shiftReplacesLabel: true },
+            { label: "/", shiftedLabel: "?", scanCode: 0x38, shiftReplacesLabel: true },
+            { label: "CLEAR", scanCode: 0x2a, dkeyCode: 0x31, width: 1.45 },
+        ],
+        [
+            { label: "↑", scanCode: 0x52, width: 0.9 },
+            { label: "↓", scanCode: 0x51, width: 0.9 },
+            { label: "SPACE", scanCode: 0x2c, width: 5.1 },
+            { label: "←", scanCode: 0x50, width: 0.9 },
+            { label: "→", scanCode: 0x4f, width: 0.9 },
+        ],
+    ];
+
+    const keyboardKeywords = [
+        "CLOAD\"",
+        "CSAVE\"",
+        "DIR",
+        "EXEC",
+        "FOR",
+        "GOTO",
+        "LIST",
+        "LOAD",
+        "LOADM\"",
+        "NEXT",
+        "PRINT\"",
+        "RUN",
+        "SAVE\"",
+    ];
+    const KEYWORD_STORAGE_KEY = "xroar.keyboardKeywords";
+    let customKeyboardKeywords = [];
+    let numericKeywordValue = 10;
+
+    function setStatus(text, isError) {
+        const banner = document.getElementById("status-banner");
+        const statusText = document.getElementById("status-text");
+        if (statusText) {
+            statusText.textContent = text;
+        }
+        if (banner) {
+            banner.classList.toggle("error", !!isError);
+        }
+    }
+
+    function loadKeyboardKeywordState() {
+        try {
+            const storedKeywords = JSON.parse(window.localStorage.getItem(KEYWORD_STORAGE_KEY) || "[]");
+            if (Array.isArray(storedKeywords)) {
+                customKeyboardKeywords = storedKeywords
+                    .map(function(keyword) { return String(keyword || "").trim().toUpperCase(); })
+                    .filter(Boolean);
+            }
+        } catch (_error) {
+            customKeyboardKeywords = [];
+        }
+        numericKeywordValue = 10;
+    }
+
+    function persistKeyboardKeywordState() {
+        try {
+            window.localStorage.setItem(KEYWORD_STORAGE_KEY, JSON.stringify(customKeyboardKeywords));
+        } catch (_error) {
+        }
+    }
+
+    function getSortedKeyboardKeywords() {
+        const merged = keyboardKeywords.concat(customKeyboardKeywords);
+        return Array.from(new Set(merged)).sort(function(a, b) {
+            return a.localeCompare(b);
+        });
+    }
+
+    function refreshCustomKeywordLibrary() {
+        const library = document.getElementById("keyword-library");
+        if (!library) {
+            return;
+        }
+        if (!customKeyboardKeywords.length) {
+            library.textContent = "Custom keywords: none.";
+            return;
+        }
+        const sorted = customKeyboardKeywords.slice().sort(function(a, b) {
+            return a.localeCompare(b);
+        });
+        library.textContent = "Custom keywords: " + sorted.join(", ");
+    }
+
+    function typeKeywordIntoXroar(keyword) {
+        if (!keyword) {
+            return;
+        }
+        resumeAudio();
+        focusCanvas();
+        if (runtimeReady()) {
+            Module.ccall("wasm_queue_basic", null, [ "string" ], [ String(keyword) ]);
+            return;
+        }
+        queueTextToXroar(keyword);
+    }
+
+    function renderKeyboardKeywordBar() {
+        const bar = document.getElementById("keyboard-keyword-bar");
+        if (!bar) {
+            return;
+        }
+        while (bar.lastChild) {
+            bar.removeChild(bar.lastChild);
+        }
+
+        const decrementButton = document.createElement("button");
+        decrementButton.type = "button";
+        decrementButton.className = "keyboard-keyword-chip";
+        decrementButton.textContent = "-10";
+        decrementButton.addEventListener("click", function() {
+            typeKeywordIntoXroar(String(numericKeywordValue));
+            numericKeywordValue -= 10;
+            renderKeyboardKeywordBar();
+        });
+        bar.appendChild(decrementButton);
+
+        const incrementButton = document.createElement("button");
+        incrementButton.type = "button";
+        incrementButton.className = "keyboard-keyword-chip";
+        incrementButton.textContent = "+10";
+        incrementButton.addEventListener("click", function() {
+            typeKeywordIntoXroar(String(numericKeywordValue));
+            numericKeywordValue += 10;
+            renderKeyboardKeywordBar();
+        });
+        bar.appendChild(incrementButton);
+
+        getSortedKeyboardKeywords().forEach(function(keyword) {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "keyboard-keyword-chip";
+            chip.textContent = keyword;
+            chip.addEventListener("click", function() {
+                typeKeywordIntoXroar(keyword);
+            });
+            bar.appendChild(chip);
+        });
+    }
+
+    function addCustomKeyword(keyword) {
+        const normalized = String(keyword || "").trim().toUpperCase();
+        if (!normalized) {
+            return false;
+        }
+        if (keyboardKeywords.indexOf(normalized) !== -1 || customKeyboardKeywords.indexOf(normalized) !== -1) {
+            return false;
+        }
+        customKeyboardKeywords.push(normalized);
+        persistKeyboardKeywordState();
+        refreshCustomKeywordLibrary();
+        renderKeyboardKeywordBar();
+        return true;
+    }
+
+    function addCustomKeywordFromSettings() {
+        const input = document.getElementById("keyword-input");
+        if (!input) {
+            return;
+        }
+        const added = addCustomKeyword(input.value);
+        if (added) {
+            setStatus("Added keyboard keyword " + input.value.trim().toUpperCase() + ".", false);
+            input.value = "";
+            return;
+        }
+        setStatus("Keyword already exists or was empty.", true);
+    }
+
+    function decodeBase64ToUint8Array(base64) {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes;
+    }
+
+    function appendBootLog(source, text, isError) {
+        if (text === undefined || text === null) {
+            return;
+        }
+        const prefix = isError ? "!" : ">";
+        const line = prefix + " [" + source + "] " + String(text);
+        bootLogLines.push(line);
+        if (bootLogLines.length > 120) {
+            bootLogLines = bootLogLines.slice(bootLogLines.length - 120);
+        }
+        const el = document.getElementById("boot-log");
+        if (el) {
+            el.textContent = bootLogLines.join("\n");
+            el.scrollTop = el.scrollHeight;
+        }
+    }
+
+    function refreshBootSummary() {
+        const el = document.getElementById("boot-summary");
+        const joystickLine = "Joystick readout: P0(" + joystickDebug.port0x + "," + joystickDebug.port0y + ") P1(" + joystickDebug.port1x + "," + joystickDebug.port1y + ") buttons=" + joystickDebug.buttons;
+        if (!el) {
+            return;
+        }
+        const lines = [];
+        lines.push("Imported ROMs: " + (bootPlan.roms.length ? bootPlan.roms.join(", ") : "none"));
+        lines.push("Imported config: " + (bootPlan.configPresent ? "yes" : "no"));
+        lines.push("Detected machine: " + bootPlan.profile.label + (bootPlan.profile.machine ? " (" + bootPlan.profile.machine + ")" : ""));
+        lines.push("Configured machine override: " + (bootPlan.configuredMachine || "none"));
+        lines.push("Configured RAM override: " + (bootPlan.configuredRam ? bootPlan.configuredRam + " KB" : "none"));
+        lines.push("Configured VDG override: " + (bootPlan.configuredVdgType || "none"));
+        lines.push("Runtime machine: " + (runtimeMachineLabel || runtimeMachineValue || "not selected yet"));
+        lines.push("Initialisation: " + (uiInitialised ? "ui_done_initialising() called" : "waiting"));
+        lines.push(joystickLine);
+        lines.push("Startup args: " + (Module.arguments.length ? Module.arguments.join(" ") : "(none)"));
+        if (bootPlan.profile.required.length) {
+            lines.push("Expected ROMs: " + bootPlan.profile.required.join(", "));
+            lines.push("Missing expected ROMs: " + (bootPlan.missing.length ? bootPlan.missing.join(", ") : "none"));
+        } else {
+            lines.push("Expected ROMs: unable to infer from the imported set");
+        }
+        el.textContent = lines.join("\n");
+    }
+
+    function preloadImportedRoms() {
+        if (!bridgeAvailable()) {
+            return 0;
+        }
+        const roms = bootPlan.roms;
+        let count = 0;
+        for (const rom of roms) {
+            const base64 = AndroidBridge.readRomBase64(rom);
+            if (!base64) {
+                appendBootLog("rom", "Missing file data for " + rom + ".", true);
+                continue;
+            }
+            Module.FS.writeFile(rom, decodeBase64ToUint8Array(base64));
+            appendBootLog("rom", "Preloaded " + rom + ".");
+            count += 1;
+        }
+        return count;
+    }
+
+    function preloadImportedConfig() {
+        if (!bootPlan.configPresent) {
+            return false;
+        }
+        const base64 = AndroidBridge.readImportedConfigBase64();
+        if (!base64) {
+            appendBootLog("config", "Imported config file was present but could not be read.", true);
+            return false;
+        }
+        Module.FS.writeFile("xroar.conf", decodeBase64ToUint8Array(base64));
+        appendBootLog("config", "Preloaded xroar.conf.");
+        return true;
+    }
+
+    function pickRomFolder() {
+        if (!bridgeAvailable()) {
+            setStatus("ROM folder import is only available in the Android app shell.", true);
+            return;
+        }
+        AndroidBridge.pickRomFolder();
+        setStatus("Choose a folder that contains your XRoar ROM files.", false);
+    }
+
+    function pickConfigFile() {
+        if (!bridgeAvailable()) {
+            setStatus("Config import is only available in the Android app shell.", true);
+            return;
+        }
+        AndroidBridge.pickConfigFile();
+        setStatus("Choose an XRoar config file to import.", false);
+    }
+
+    function refreshRomInventory() {
+        const el = document.getElementById("rom-library");
+        if (!bridgeAvailable()) {
+            el.textContent = "ROM import is only available in the Android app shell.";
+            return;
+        }
+        let roms = [];
+        try {
+            roms = JSON.parse(AndroidBridge.getImportedRoms() || "[]");
+        } catch (error) {
+            setStatus("Failed to read imported ROM inventory.", true);
+        }
+        if (!roms.length) {
+            el.textContent = "No ROMs imported yet.";
+            if (document.getElementById("status-text").textContent.indexOf("Waiting for the emulator runtime.") === -1) {
+                setStatus("Import your XRoar firmware ROM folder, then reload the emulator.", true);
+            }
+            return;
+        }
+        el.textContent = roms.join(", ");
+    }
+
+    function clearRomLibrary() {
+        if (!bridgeAvailable()) {
+            setStatus("ROM library controls are only available in the Android app shell.", true);
+            return;
+        }
+        const cleared = AndroidBridge.clearImportedRoms();
+        setStatus("Cleared " + cleared + " imported ROM file(s). Reloading emulator...", false);
+        refreshRomInventory();
+        setTimeout(function() {
+            window.location.reload();
+        }, 700);
+    }
+
+    function refreshConfigStatus() {
+        const el = document.getElementById("config-library");
+        if (!bridgeAvailable()) {
+            el.textContent = "Config import is only available in the Android app shell.";
+            return;
+        }
+        if (!AndroidBridge.hasImportedConfig()) {
+            el.textContent = "No imported config file.";
+            return;
+        }
+        el.textContent = "Imported config: " + AndroidBridge.importedConfigName() + " -> xroar.conf";
+    }
+
+    function clearConfigFile() {
+        if (!bridgeAvailable()) {
+            setStatus("Config import is only available in the Android app shell.", true);
+            return;
+        }
+        const cleared = AndroidBridge.clearImportedConfig();
+        setStatus(cleared ? "Cleared imported config file. Reloading emulator..." : "No imported config file to clear.", false);
+        refreshConfigStatus();
+        setTimeout(function() {
+            window.location.reload();
+        }, 700);
+    }
+
+    function onRomImportComplete(importedCount, message, isError) {
+        if (!isError && importedCount > 0) {
+            setStatus(message + " Reloading emulator so the ROMs can be detected...", false);
+            refreshRomInventory();
+            refreshConfigStatus();
+            setTimeout(function() {
+                window.location.reload();
+            }, 900);
+            return;
+        }
+        setStatus(message, !!isError);
+        refreshRomInventory();
+    }
+
+    function onConfigImportComplete(imported, message, isError) {
+        setStatus(message, !!isError);
+        refreshConfigStatus();
+        if (imported && !isError) {
+            setTimeout(function() {
+                window.location.reload();
+            }, 900);
+        }
+    }
+
+    function focusCanvas() {
+        Module.canvas.focus();
+    }
+
+    function runtimeReady() {
+        return typeof Module !== "undefined" && typeof Module.ccall === "function" && runtimeBootRequested;
+    }
+
+    function pressScanCode(scanCode) {
+        if (!runtimeReady()) {
+            return;
+        }
+        Module.ccall("wasm_scan_press", null, [ "number" ], [ scanCode ]);
+    }
+
+    function releaseScanCode(scanCode) {
+        if (!runtimeReady()) {
+            return;
+        }
+        Module.ccall("wasm_scan_release", null, [ "number" ], [ scanCode ]);
+    }
+
+    function pressDKey(dkeyCode) {
+        if (!runtimeReady()) {
+            return;
+        }
+        Module.ccall("wasm_dkey_press", null, [ "number" ], [ dkeyCode ]);
+    }
+
+    function releaseDKey(dkeyCode) {
+        if (!runtimeReady()) {
+            return;
+        }
+        Module.ccall("wasm_dkey_release", null, [ "number" ], [ dkeyCode ]);
+    }
+
+    function releaseStickyModifiers(excludeScanCode) {
+        Object.keys(stickyModifiers).forEach(function(code) {
+            if (!stickyModifiers[code] || Number(code) === excludeScanCode) {
+                return;
+            }
+            releaseScanCode(Number(code));
+            stickyModifiers[code] = false;
+        });
+        syncKeyboardModifierState();
+    }
+
+    function syncKeyboardModifierState() {
+        document.querySelectorAll(".key[data-scan-code]").forEach(function(button) {
+            const scanCode = Number(button.dataset.scanCode);
+            button.classList.toggle("key-held", !!stickyModifiers[scanCode]);
+            button.classList.toggle("shift-active", !!button.dataset.shiftedLabel && !!stickyModifiers[0xe1]);
+        });
+    }
+
+    function buildLockedOption(select, value, label) {
+        while (select.lastChild) {
+            select.removeChild(select.lastChild);
+        }
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        select.appendChild(option);
+        select.value = value;
+        select.disabled = true;
+    }
+
+    function enforceVirtualJoystickOptions() {
+        const right = document.getElementById("right-joystick");
+        const left = document.getElementById("left-joystick");
+        if (right) {
+            buildLockedOption(right, "wasm", "On-screen gamepad");
+        }
+        if (left) {
+            buildLockedOption(left, "wasm", "On-screen gamepad");
+        }
+        if (runtimeReady()) {
+            Module.ccall("wasm_set_joystick_by_name", null, [ "number", "string" ], [ 0, "wasm" ]);
+            Module.ccall("wasm_set_joystick_by_name", null, [ "number", "string" ], [ 1, "wasm" ]);
+            Module.ccall("wasm_set_virtual_joystick", null, [ "string" ], [ "wasm" ]);
+        }
+        appendBootLog("joy", "Forced virtual joystick 'wasm' on left and right ports.");
+        virtualJoystickMapped = true;
+    }
+
+    function buildKeyboard() {
+        const root = document.getElementById("keyboard");
+        if (!root || root.childElementCount > 0) {
+            return;
+        }
+        for (const row of keyboardRows) {
+            const rowEl = document.createElement("div");
+            rowEl.className = "keyboard-row";
+            for (const key of row) {
+                const button = document.createElement("button");
+                button.className = "key";
+                if (key.label === "BREAK") {
+                    button.classList.add("key-break");
+                }
+                if (key.label === "↑" || key.label === "↓" || key.label === "←" || key.label === "→") {
+                    button.classList.add("key-arrow");
+                }
+                if (key.label === "ENTER" || key.label === "CLEAR" || key.label === "SHIFT" ||
+                    key.label === "↑" || key.label === "↓" || key.label === "←" || key.label === "→") {
+                    button.classList.add("key-control");
+                }
+                if (key.label === "ENTER" || key.label === "CLEAR" || key.label === "SHIFT" || key.label === "BREAK") {
+                    button.classList.add("key-small-label");
+                    button.classList.add("key-center-main");
+                }
+                if (/^[A-Z]$/.test(key.label)) {
+                    button.classList.add("key-letter");
+                }
+                button.type = "button";
+                button.dataset.baseLabel = key.label;
+                if (key.shiftedLabel) {
+                    button.dataset.shiftedLabel = key.shiftedLabel;
+                }
+                if (key.shiftReplacesLabel) {
+                    button.classList.add("key-shift-replaces-main");
+                }
+                if (key.centerLabel) {
+                    button.classList.add("key-center-main");
+                }
+                button.style.flex = String(key.width || 1);
+                button.dataset.scanCode = String(key.scanCode);
+                if (key.dkeyCode !== undefined) {
+                    button.dataset.dkeyCode = String(key.dkeyCode);
+                }
+                if (key.shiftedLabel) {
+                    const shifted = document.createElement("span");
+                    shifted.className = "key-shifted";
+                    shifted.textContent = key.shiftedLabel;
+                    button.appendChild(shifted);
+                }
+                const main = document.createElement("span");
+                main.className = "key-main";
+                main.textContent = key.label;
+                button.appendChild(main);
+                bindPressable(button, function() {
+                    dispatchVirtualKeyPress(key);
+                }, function() {
+                    dispatchVirtualKeyRelease(key);
+                }, {
+                    haptic: true,
+                    longPressMs: key.label === "CLEAR" ? 550 : 0,
+                });
+                rowEl.appendChild(button);
+            }
+            root.appendChild(rowEl);
+        }
+        syncKeyboardModifierState();
+    }
+
+    function charToKeySequence(char) {
+        if (char === "\n" || char === "\r") {
+            return [ 0x28 ];
+        }
+        const letter = char.toLowerCase();
+        const letterCode = letter.charCodeAt(0);
+        if (letterCode >= 97 && letterCode <= 122) {
+            const base = 0x04 + (letterCode - 97);
+            return char === letter ? [ base ] : [ 0xe1, base ];
+        }
+        if (char >= "1" && char <= "9") {
+            return [ 0x1e + (char.charCodeAt(0) - 49) ];
+        }
+        if (char === "0") {
+            return [ 0x27 ];
+        }
+        const scanCodeMap = {
+            " ": 0x2c,
+            ",": 0x36,
+            ".": 0x37,
+            "-": 0x2d,
+            "=": 0x2e,
+            ";": 0x33,
+            "/": 0x38,
+            "!": 0x1e,
+            "\"": 0x1f,
+            "#": 0x20,
+            "$": 0x21,
+            "%": 0x22,
+            "&": 0x23,
+            "'": 0x24,
+            "*": 0x2d,
+            "(": 0x25,
+            ")": 0x26,
+            "@": 0x2f,
+            "<": 0x36,
+            ">": 0x37,
+            "_": 0x2d,
+            "+": 0x33,
+            ":": 0x2d,
+            "?": 0x38,
+        };
+        const scanCode = scanCodeMap[char];
+        if (!scanCode) {
+            return null;
+        }
+        const needsShift = "!\"#$%&'()*<>_+?".indexOf(char) !== -1;
+        return needsShift ? [ 0xe1, scanCode ] : [ scanCode ];
+    }
+
+    function sendKeySequence(sequence) {
+        if (!sequence || !sequence.length) {
+            return;
+        }
+        const modifiers = sequence.slice(0, sequence.length - 1);
+        const key = sequence[sequence.length - 1];
+        modifiers.forEach(pressScanCode);
+        pressScanCode(key);
+        releaseScanCode(key);
+        modifiers.slice().reverse().forEach(releaseScanCode);
+    }
+
+    function sendTextToXroar(text) {
+        Array.from(text || "").forEach(function(char) {
+            const sequence = charToKeySequence(char);
+            if (sequence) {
+                sendKeySequence(sequence);
+            }
+        });
+    }
+
+    function processQueuedTextToXroar() {
+        if (!pendingTextQueue.length) {
+            textQueueRunning = false;
+            return;
+        }
+        textQueueRunning = true;
+        const nextChar = pendingTextQueue.shift();
+        const sequence = charToKeySequence(nextChar);
+        if (sequence) {
+            sendKeySequence(sequence);
+        }
+        setTimeout(processQueuedTextToXroar, 55);
+    }
+
+    function queueTextToXroar(text) {
+        const normalized = String(text || "");
+        if (!normalized) {
+            return;
+        }
+        pendingTextQueue = pendingTextQueue.concat(Array.from(normalized));
+        if (!textQueueRunning) {
+            processQueuedTextToXroar();
+        }
+    }
+
+    function bindImeKeyboard() {
+        const input = document.getElementById("ime-capture");
+        if (!input) {
+            return;
+        }
+        input.addEventListener("focus", function() {
+            setStatus("Android keyboard ready. Typed characters will be sent into XRoar.", false);
+        });
+        input.addEventListener("beforeinput", function(event) {
+            if (event.inputType === "insertText" || event.inputType === "insertCompositionText") {
+                if (event.data) {
+                    event.preventDefault();
+                    sendTextToXroar(event.data);
+                    input.value = "";
+                    lastImeValue = "";
+                }
+                return;
+            }
+            if (event.inputType === "deleteContentBackward") {
+                event.preventDefault();
+                sendKeySequence([ 0x2a ]);
+                input.value = "";
+                lastImeValue = "";
+                return;
+            }
+            if (event.inputType === "insertLineBreak") {
+                event.preventDefault();
+                sendKeySequence([ 0x28 ]);
+                input.value = "";
+                lastImeValue = "";
+            }
+        });
+        input.addEventListener("keydown", function(event) {
+            if (event.key === "Backspace") {
+                event.preventDefault();
+                sendKeySequence([ 0x2a ]);
+                input.value = "";
+                lastImeValue = "";
+                return;
+            }
+            if (event.key === "Enter") {
+                event.preventDefault();
+                sendKeySequence([ 0x28 ]);
+                input.value = "";
+                lastImeValue = "";
+            }
+        });
+        input.addEventListener("compositionend", function(event) {
+            if (!event.data) {
+                return;
+            }
+            sendTextToXroar(event.data);
+            input.value = "";
+            lastImeValue = "";
+        });
+        input.addEventListener("input", function() {
+            const value = input.value || "";
+            if (!value) {
+                lastImeValue = "";
+                return;
+            }
+            if (value.length > lastImeValue.length) {
+                sendTextToXroar(value.slice(lastImeValue.length));
+            } else if (value.length < lastImeValue.length) {
+                sendKeySequence([ 0x2a ]);
+            }
+            lastImeValue = "";
+            input.value = "";
+        });
+    }
+
+    function bindKeyboardKeywordMenu() {
+        const input = document.getElementById("keyword-input");
+        if (input) {
+            input.addEventListener("keydown", function(event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCustomKeywordFromSettings();
+                }
+            });
+        }
+        refreshCustomKeywordLibrary();
+        renderKeyboardKeywordBar();
+    }
+
+    function dispatchVirtualKeyPress(key) {
+        resumeAudio();
+        focusCanvas();
+        if (key.sticky) {
+            if (stickyModifiers[key.scanCode]) {
+                if (key.dkeyCode !== undefined) {
+                    releaseDKey(key.dkeyCode);
+                } else {
+                    releaseScanCode(key.scanCode);
+                }
+                stickyModifiers[key.scanCode] = false;
+            } else {
+                if (key.dkeyCode !== undefined) {
+                    pressDKey(key.dkeyCode);
+                } else {
+                    pressScanCode(key.scanCode);
+                }
+                stickyModifiers[key.scanCode] = true;
+            }
+            syncKeyboardModifierState();
+            return;
+        }
+        if (key.dkeyCode !== undefined) {
+            pressDKey(key.dkeyCode);
+        } else {
+            pressScanCode(key.scanCode);
+        }
+    }
+
+    function dispatchVirtualKeyRelease(key) {
+        if (key.sticky) {
+            return;
+        }
+        if (key.dkeyCode !== undefined) {
+            releaseDKey(key.dkeyCode);
+        } else {
+            releaseScanCode(key.scanCode);
+        }
+        releaseStickyModifiers();
+    }
+
+    const hardwareKeyMap = {
+        Escape: { scanCode: 0x29 },
+        Enter: { scanCode: 0x28 },
+        Home: { scanCode: 0x2a },
+        Backspace: { scanCode: 0x2a },
+        Space: { scanCode: 0x2c },
+        ArrowUp: { scanCode: 0x52 },
+        ArrowDown: { scanCode: 0x51 },
+        ArrowLeft: { scanCode: 0x50 },
+        ArrowRight: { scanCode: 0x4f },
+        ShiftLeft: { scanCode: 0xe1 },
+        ShiftRight: { scanCode: 0xe5 },
+        Digit1: { scanCode: 0x1e },
+        Digit2: { scanCode: 0x1f },
+        Digit3: { scanCode: 0x20 },
+        Digit4: { scanCode: 0x21 },
+        Digit5: { scanCode: 0x22 },
+        Digit6: { scanCode: 0x23 },
+        Digit7: { scanCode: 0x24 },
+        Digit8: { scanCode: 0x25 },
+        Digit9: { scanCode: 0x26 },
+        Digit0: { scanCode: 0x27 },
+        Minus: { dkeyCode: 0x0a },
+        Equal: { dkeyCode: 0x0d },
+        BracketLeft: { dkeyCode: 0x10 },
+        Semicolon: { dkeyCode: 0x0b },
+        Comma: { scanCode: 0x36 },
+        Period: { scanCode: 0x37 },
+        Slash: { scanCode: 0x38 },
+        KeyA: { scanCode: 0x04 },
+        KeyB: { scanCode: 0x05 },
+        KeyC: { scanCode: 0x06 },
+        KeyD: { scanCode: 0x07 },
+        KeyE: { scanCode: 0x08 },
+        KeyF: { scanCode: 0x09 },
+        KeyG: { scanCode: 0x0a },
+        KeyH: { scanCode: 0x0b },
+        KeyI: { scanCode: 0x0c },
+        KeyJ: { scanCode: 0x0d },
+        KeyK: { scanCode: 0x0e },
+        KeyL: { scanCode: 0x0f },
+        KeyM: { scanCode: 0x10 },
+        KeyN: { scanCode: 0x11 },
+        KeyO: { scanCode: 0x12 },
+        KeyP: { scanCode: 0x13 },
+        KeyQ: { scanCode: 0x14 },
+        KeyR: { scanCode: 0x15 },
+        KeyS: { scanCode: 0x16 },
+        KeyT: { scanCode: 0x17 },
+        KeyU: { scanCode: 0x18 },
+        KeyV: { scanCode: 0x19 },
+        KeyW: { scanCode: 0x1a },
+        KeyX: { scanCode: 0x1b },
+        KeyY: { scanCode: 0x1c },
+        KeyZ: { scanCode: 0x1d },
+    };
+
+    function isInteractiveElement(target) {
+        if (!target || !target.closest) {
+            return false;
+        }
+        return !!target.closest("input, textarea, select, button, label");
+    }
+
+    function handleHardwareKeyboardEvent(event, isPressed) {
+        if (!hardwareKeyboardAvailable || isInteractiveElement(event.target)) {
+            return;
+        }
+        const mapped = hardwareKeyMap[event.code];
+        if (!mapped) {
+            return;
+        }
+        event.preventDefault();
+        focusCanvas();
+        if (mapped.dkeyCode !== undefined) {
+            if (isPressed) {
+                if (!event.repeat) {
+                    pressDKey(mapped.dkeyCode);
+                }
+            } else {
+                releaseDKey(mapped.dkeyCode);
+            }
+            return;
+        }
+        if (isPressed) {
+            if (!event.repeat) {
+                pressScanCode(mapped.scanCode);
+            }
+        } else {
+            releaseScanCode(mapped.scanCode);
+        }
+    }
+
+    function bindHardwareKeyboard() {
+        window.addEventListener("keydown", function(event) {
+            handleHardwareKeyboardEvent(event, true);
+        });
+        window.addEventListener("keyup", function(event) {
+            handleHardwareKeyboardEvent(event, false);
+        });
+    }
+
+    function updatePhysicalKeyboardState(available) {
+        hardwareKeyboardAvailable = !!available;
+        updateInputModeUi();
+    }
+
+    window.onAndroidPhysicalKeyboardChanged = function(available) {
+        updatePhysicalKeyboardState(available);
+    };
+
+    function updateInputModeUi() {
+        const keyboardPanel = document.getElementById("keyboard-panel");
+        const gamepadPanel = document.getElementById("gamepad-panel");
+        const toggleButton = document.getElementById("input-toggle-button");
+        const showKeyboard = inputMode === "keyboard" && !hardwareKeyboardAvailable;
+        keyboardPanel.classList.toggle("hidden", !showKeyboard);
+        gamepadPanel.classList.toggle("hidden", showKeyboard);
+        if (toggleButton) {
+            toggleButton.textContent = showKeyboard ? "Gamepad" : "Keyboard";
+            toggleButton.disabled = false;
+        }
+    }
+
+    function toggleInputMode() {
+        inputMode = inputMode === "keyboard" ? "gamepad" : "keyboard";
+        updateInputModeUi();
+        if (inputMode === "keyboard") {
+            resetVirtualAxes();
+            buildKeyboard();
+        } else {
+            focusCanvas();
+        }
+    }
+
+    function showPage(page) {
+        currentPage = page;
+        document.querySelectorAll(".page-card").forEach(function(section) {
+            section.classList.toggle("hidden", section.id !== "page-" + page);
+        });
+        document.querySelectorAll(".page-menu-item").forEach(function(button) {
+            button.classList.toggle("active", button.id === "menu-" + page);
+        });
+        closePageMenu();
+        if (page === "emulator") {
+            updateInputModeUi();
+        } else {
+            focusCanvas();
+        }
+    }
+
+    function returnToHomeAfterMediaAction() {
+        if (currentPage === "media") {
+            showPage("emulator");
+        }
+    }
+
+    function pageSequence() {
+        return [ "emulator", "media", "config", "settings", "info", "about" ];
+    }
+
+    Module.onRuntimeInitialized = function() {
+        wasm_load_file = Module.cwrap("wasm_load_file", null, [ "string", "number", "number" ]);
+        const wasmBoot = Module.cwrap("wasm_boot", "number", []);
+
+        let args = window.location.search.substr(1).split("&");
+        for (let arg of args) {
+            if (arg.substring(0, 1) == "-") {
+                if (arg.includes("=")) {
+                    let [k, v] = arg.split("=");
+                    v = decodeURIComponent(v.replace(/\+/g, "%20"));
+                    Module.arguments.push(k, v);
+                } else {
+                    Module.arguments.push(arg);
+                }
+            }
+        }
+
+        if (!runtimeBootRequested) {
+            runtimeBootRequested = true;
+            appendBootLog("boot", "Calling wasm_boot().");
+            wasmBoot();
+        }
+        updatePhysicalKeyboardState(hasPhysicalKeyboard());
+        enforceVirtualJoystickOptions();
+        setInterval(function() {
+            if (!runtimeReady() || !uiInitialised) {
+                return;
+            }
+            joystickDebug.port0x = Module.ccall("wasm_debug_joystick_axis", "number", [ "number", "number" ], [ 0, 0 ]);
+            joystickDebug.port0y = Module.ccall("wasm_debug_joystick_axis", "number", [ "number", "number" ], [ 0, 1 ]);
+            joystickDebug.port1x = Module.ccall("wasm_debug_joystick_axis", "number", [ "number", "number" ], [ 1, 0 ]);
+            joystickDebug.port1y = Module.ccall("wasm_debug_joystick_axis", "number", [ "number", "number" ], [ 1, 1 ]);
+            joystickDebug.buttons = Module.ccall("wasm_debug_joystick_buttons", "number", [], []);
+            refreshBootSummary();
+        }, 250);
+
+        if (!window.__xroarRuntimeStub) {
+            if (preloadedRomCount > 0) {
+                let detail = "Emulator runtime loaded with " + preloadedRomCount + " imported ROM file(s).";
+                if (preloadedConfig) {
+                    detail += " Config file preloaded.";
+                }
+                if (bootPlan.configuredMachine) {
+                    detail += " Startup machine set to " + bootPlan.configuredMachine + ".";
+                } else if (bootPlan.profile.machine && !bootPlan.configPresent) {
+                    detail += " Auto-selected machine " + bootPlan.profile.machine + ".";
+                }
+                setStatus(detail, false);
+            } else {
+                setStatus("Emulator runtime loaded, but no ROMs were preloaded. Import your firmware folder first.", true);
+            }
+        }
+        refreshBootSummary();
+    };
+
+    function resumeAudio() {
+        if (Module === undefined
+                || typeof Module.SDL2 === "undefined"
+                || typeof Module.SDL2.audioContext === "undefined") {
+            return;
+        }
+        if (Module.SDL2.audioContext.state === "suspended") {
+            Module.SDL2.audioContext.resume();
+        }
+        if (Module.SDL2.audioContext.state === "running") {
+            document.getElementById("canvas").removeEventListener("click", resumeAudio);
+            document.removeEventListener("keydown", resumeAudio);
+        }
+    }
+
+    document.getElementById("canvas").addEventListener("click", resumeAudio);
+    document.addEventListener("keydown", resumeAudio);
+
+    function populateSoftware() {
+        var table = document.getElementById("software");
+        if (!table) {
+            return;
+        }
+        for (var i = 0; i < software.length; ++i) {
+            const section = software[i];
+            var tr = document.createElement("tr");
+            var th = document.createElement("th");
+            th.textContent = section.name;
+            tr.appendChild(th);
+            var td = document.createElement("td");
+            var select = document.createElement("select");
+            select.setAttribute("id", "software:" + i);
+            select.setAttribute("onchange", "start_selected_software(this, this.options[this.selectedIndex].value)");
+            var option = document.createElement("option");
+            option.setAttribute("value", "");
+            option.textContent = "Select...";
+            select.appendChild(option);
+            for (var j = 0; j < section.entries.length; ++j) {
+                const entry = section.entries[j];
+                var entryOption = document.createElement("option");
+                entryOption.setAttribute("value", i + "," + j);
+                entryOption.textContent = entry.name;
+                select.appendChild(entryOption);
+            }
+            td.appendChild(select);
+            tr.appendChild(td);
+            table.appendChild(tr);
+        }
+    }
+
+    function file_input_onload(el, loadtype, drive) {
+        resumeAudio();
+        if (el.files.length === 0) {
+            return;
+        }
+        var file = el.files[0];
+        var fr = new FileReader();
+        fr.onload = function() {
+            var data = new Uint8Array(fr.result);
+            Module.FS.writeFile(file.name, data);
+            wasm_load_file(file.name, loadtype, drive);
+            el.value = "";
+            setStatus("Loaded " + file.name, false);
+            returnToHomeAfterMediaAction();
+            focusCanvas();
+        };
+        fr.readAsArrayBuffer(file);
+    }
+
+    function start_selected_software(select, value) {
+        resumeAudio();
+        setTimeout(function() { select.value = ""; }, 1000);
+        focusCanvas();
+        if (typeof value !== "string" || value === "") {
+            return;
+        }
+        var [i, j] = value.split(",");
+        var program = software[i].entries[j];
+        start_program(program);
+    }
+
+    function start_program(program) {
+        if ("tape" in program) {
+            wasm_load_file(program.tape, load_type.tape, 0);
+        }
+        for (let i = 0; i < 4; ++i) {
+            let disk = "disk" + i;
+            if (disk in program) {
+                wasm_load_file(program[disk], load_type.disk, i);
+            }
+        }
+        for (let i = 0; i < 2; ++i) {
+            let hd = "hd" + i;
+            if (hd in program) {
+                wasm_load_file(program[hd], load_type.hd, i);
+            }
+        }
+
+        Module.ccall("wasm_set_machine_cart", null, [ "string", "string", "string", "string" ], [ program.machine, program.cart, program.cart_rom, program.cart_rom2 ]);
+
+        enforceVirtualJoystickOptions();
+
+        var title = program.title ? program.title : program.name;
+        var softwareTitle = document.getElementById("software-title");
+        var softwareAuthor = document.getElementById("software-author");
+        var softwarePublisher = document.getElementById("software-publisher");
+        var softwareText = document.getElementById("software-text");
+        if (softwareTitle) {
+            softwareTitle.textContent = title;
+        }
+        if (softwareAuthor) {
+            softwareAuthor.textContent = program.author ? "Author: " + program.author : "";
+        }
+        if (softwarePublisher) {
+            softwarePublisher.textContent = program.publisher ? "Publisher: " + program.publisher : "";
+        }
+        if (softwareText) {
+            softwareText.innerHTML = program.text ? program.text : "";
+        }
+
+        if ("basic" in program) {
+            Module.ccall("wasm_queue_basic", null, [ "string" ], [ program.basic ]);
+        }
+        returnToHomeAfterMediaAction();
+    }
+
+    function wasm_hard_reset() {
+        resumeAudio();
+        Module.ccall("wasm_set_int", null, [ "string", "number" ], [ "cartridge", 0 ]);
+        const cart = document.getElementById("cart");
+        if (cart) {
+            cart.value = "0";
+        }
+        Module.ccall("xroar_hard_reset", null, [], []);
+        focusCanvas();
+    }
+
+    function wasm_soft_reset() {
+        resumeAudio();
+        Module.ccall("xroar_soft_reset", null, [], []);
+    }
+
+    function wasm_set_joystick(joy, value) {
+        resumeAudio();
+        if (joy !== 0 || String(value) !== "wasm") {
+            enforceVirtualJoystickOptions();
+            return;
+        }
+        Module.ccall("wasm_set_joystick_port", null, [ "number", "number" ], [ joy, value ]);
+        focusCanvas();
+    }
+
+    function wasm_set_joystick_by_name(joy, value) {
+        resumeAudio();
+        if (joy !== 0 || String(value) !== "wasm") {
+            enforceVirtualJoystickOptions();
+            return;
+        }
+        Module.ccall("wasm_set_joystick_by_name", null, [ "number", "string" ], [ joy, value ]);
+        focusCanvas();
+    }
+
+    function ensureVirtualJoystickMapped() {
+        if (virtualJoystickMapped || !runtimeReady()) {
+            return;
+        }
+        enforceVirtualJoystickOptions();
+    }
+
+    function updateJoystickVisual(x, y, active) {
+        const surface = document.getElementById("joystick-surface");
+        if (!surface) {
+            return;
+        }
+        surface.style.setProperty("--stick-x", x.toFixed(3));
+        surface.style.setProperty("--stick-y", y.toFixed(3));
+        surface.classList.toggle("is-active", !!active);
+    }
+
+    function axisFloatToWasm(value) {
+        const clamped = Math.max(-1, Math.min(1, value));
+        return Math.round(((clamped + 1) / 2) * 65535);
+    }
+
+    function setVirtualAxes(x, y, active) {
+        ensureVirtualJoystickMapped();
+        updateJoystickVisual(x, y, active);
+        if (!runtimeReady()) {
+            return;
+        }
+        if (virtualAxes[0] === x && virtualAxes[1] === y) {
+            return;
+        }
+        virtualAxes[0] = x;
+        virtualAxes[1] = y;
+        Module.ccall("wasm_js_set_axis", null, [ "number", "number" ], [ 0, axisFloatToWasm(x) ]);
+        Module.ccall("wasm_js_set_axis", null, [ "number", "number" ], [ 1, axisFloatToWasm(y) ]);
+        focusCanvas();
+    }
+
+    function resetVirtualAxes() {
+        if (joystickReturnMode === "free") {
+            updateJoystickVisual(virtualAxes[0], virtualAxes[1], false);
+            return;
+        }
+        setVirtualAxes(0, 0, false);
+    }
+
+    function setVirtualButton(button, pressed) {
+        ensureVirtualJoystickMapped();
+        if (!runtimeReady()) {
+            return;
+        }
+        Module.ccall("wasm_js_set_button", null, [ "number", "number" ], [ button, pressed ? 1 : 0 ]);
+        focusCanvas();
+    }
+
+    function handleJoystickTouch(surface, touch) {
+        const rect = surface.getBoundingClientRect();
+        const cx = rect.left + (rect.width / 2);
+        const cy = rect.top + (rect.height / 2);
+        const dx = touch.clientX - cx;
+        const dy = touch.clientY - cy;
+        const radius = rect.width / 2;
+        const maxDistance = radius * 0.72;
+        const distance = Math.hypot(dx, dy);
+        const scale = distance > maxDistance ? (maxDistance / distance) : 1;
+        const clampedX = dx * scale;
+        const clampedY = dy * scale;
+        const normalizedX = Math.max(-1, Math.min(1, clampedX / maxDistance));
+        const normalizedY = Math.max(-1, Math.min(1, clampedY / maxDistance));
+        setVirtualAxes(normalizedX, normalizedY, true);
+    }
+
+    function bindPressable(element, onPress, onRelease, options) {
+        const config = options || {};
+        let activePointer = null;
+        let activeTouch = null;
+        let pressed = false;
+        let longPressTimer = null;
+        const clearLongPressTimer = function() {
+            if (longPressTimer !== null) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+        };
+        const press = function(event, withHaptic) {
+            if (pressed) {
+                return;
+            }
+            pressed = true;
+            if (event && typeof event.preventDefault === "function") {
+                event.preventDefault();
+            }
+            if (withHaptic) {
+                triggerHapticTap();
+            }
+            element.classList.add("is-pressed");
+            onPress(event);
+        };
+        const beginPress = function(event) {
+            if (config.longPressMs > 0) {
+                clearLongPressTimer();
+                if (event && typeof event.preventDefault === "function") {
+                    event.preventDefault();
+                }
+                element.classList.add("is-pressed");
+                longPressTimer = setTimeout(function() {
+                    longPressTimer = null;
+                    press(event, !!config.haptic);
+                }, config.longPressMs);
+                return;
+            }
+            press(event, !!config.haptic);
+        };
+        const release = function(event) {
+            clearLongPressTimer();
+            if (!pressed) {
+                element.classList.remove("is-pressed");
+                return;
+            }
+            pressed = false;
+            if (event && typeof event.preventDefault === "function") {
+                event.preventDefault();
+            }
+            element.classList.remove("is-pressed");
+            onRelease(event);
+        };
+        element.addEventListener("pointerdown", function(event) {
+            activePointer = event.pointerId;
+            if (element.setPointerCapture) {
+                element.setPointerCapture(event.pointerId);
+            }
+            beginPress(event);
+        });
+        element.addEventListener("pointerup", function(event) {
+            if (activePointer !== null && event.pointerId !== activePointer) {
+                return;
+            }
+            activePointer = null;
+            release(event);
+        });
+        element.addEventListener("pointercancel", function(event) {
+            if (activePointer !== null && event.pointerId !== activePointer) {
+                return;
+            }
+            activePointer = null;
+            release(event);
+        });
+        element.addEventListener("touchstart", function(event) {
+            if (activeTouch !== null || event.changedTouches.length === 0) {
+                return;
+            }
+            activeTouch = event.changedTouches[0].identifier;
+            beginPress(event);
+        }, { passive: false });
+        element.addEventListener("touchend", function(event) {
+            if (activeTouch === null) {
+                return;
+            }
+            const match = Array.from(event.changedTouches).some(function(touch) {
+                return touch.identifier === activeTouch;
+            });
+            if (!match) {
+                return;
+            }
+            activeTouch = null;
+            release(event);
+        }, { passive: false });
+        element.addEventListener("touchcancel", function(event) {
+            if (activeTouch === null) {
+                return;
+            }
+            activeTouch = null;
+            release(event);
+        }, { passive: false });
+    }
+
+    function bindGamepadControls() {
+        const surface = document.getElementById("joystick-surface");
+        if (surface) {
+            const updateFromPointer = function(event) {
+                handleJoystickTouch(surface, event);
+            };
+            surface.addEventListener("pointerdown", function(event) {
+                event.preventDefault();
+                if (joystickPointerId !== null) {
+                    return;
+                }
+                joystickPointerId = event.pointerId;
+                surface.setPointerCapture(event.pointerId);
+                resumeAudio();
+                updateFromPointer(event);
+            });
+            surface.addEventListener("pointermove", function(event) {
+                if (event.pointerId !== joystickPointerId) {
+                    return;
+                }
+                event.preventDefault();
+                updateFromPointer(event);
+            });
+            const endPointer = function(event) {
+                if (event.pointerId !== joystickPointerId) {
+                    return;
+                }
+                event.preventDefault();
+                if (surface.hasPointerCapture(event.pointerId)) {
+                    surface.releasePointerCapture(event.pointerId);
+                }
+                joystickPointerId = null;
+                resetVirtualAxes();
+            };
+            surface.addEventListener("pointerup", endPointer);
+            surface.addEventListener("pointercancel", endPointer);
+            surface.addEventListener("touchstart", function(event) {
+                if (joystickPointerId !== null || event.changedTouches.length === 0) {
+                    return;
+                }
+                event.preventDefault();
+                joystickPointerId = event.changedTouches[0].identifier;
+                resumeAudio();
+                handleJoystickTouch(surface, event.changedTouches[0]);
+            }, { passive: false });
+            surface.addEventListener("touchmove", function(event) {
+                if (joystickPointerId === null) {
+                    return;
+                }
+                const touch = Array.from(event.changedTouches).find(function(item) {
+                    return item.identifier === joystickPointerId;
+                });
+                if (!touch) {
+                    return;
+                }
+                event.preventDefault();
+                handleJoystickTouch(surface, touch);
+            }, { passive: false });
+            const endTouch = function(event) {
+                if (joystickPointerId === null) {
+                    return;
+                }
+                const match = Array.from(event.changedTouches).some(function(item) {
+                    return item.identifier === joystickPointerId;
+                });
+                if (!match) {
+                    return;
+                }
+                event.preventDefault();
+                joystickPointerId = null;
+                resetVirtualAxes();
+            };
+            surface.addEventListener("touchend", endTouch, { passive: false });
+            surface.addEventListener("touchcancel", endTouch, { passive: false });
+        }
+        document.querySelectorAll("[data-button]").forEach(function(button) {
+            const buttonIndex = Number(button.dataset.button);
+            bindPressable(button, function() {
+                resumeAudio();
+                setVirtualButton(buttonIndex, true);
+            }, function() {
+                setVirtualButton(buttonIndex, false);
+            }, { haptic: true });
+        });
+        applyGamepadSideMode();
+    }
+
+    function wasm_new_disk(drive) {
+        Module.ccall("wasm_new_disk", null, [ "number" ], [ drive ]);
+    }
+
+    function wasm_eject_disk(drive) {
+        resumeAudio();
+        Module.ccall("xroar_eject_disk", null, [ "number" ], [ drive ]);
+    }
+
+    function wasm_eject_tape() {
+        resumeAudio();
+        Module.ccall("xroar_eject_input_tape", null, [], []);
+    }
+
+    function wasm_set_int(control, value, refocus) {
+        resumeAudio();
+        Module.ccall("wasm_set_int", null, [ "string", "number" ], [ control, value ]);
+        if (refocus) {
+            focusCanvas();
+        }
+    }
+
+    function wasm_set_float(control, value, refocus) {
+        resumeAudio();
+        Module.ccall("wasm_set_float", null, [ "string", "number" ], [ control, value ]);
+        if (refocus) {
+            focusCanvas();
+        }
+    }
+
+    function wasm_resize() {
+        if (Module.is_fullscreen) {
+            Module.canvas.width = window.innerWidth;
+            Module.canvas.height = window.innerHeight;
+        } else {
+            const maxWidth = Math.min(window.innerWidth - 24, 960);
+            Module.canvas.width = Math.max(320, maxWidth);
+            Module.canvas.height = Math.round(Module.canvas.width * 0.75);
+        }
+        Module.ccall("wasm_resize", null, [ "number", "number" ], [ Module.canvas.width, Module.canvas.height ]);
+    }
+
+    function ui_menu_clear(menu) {
+        var select = document.getElementById(UTF8ToString(menu));
+        if (select != null) {
+            if (select.id === "right-joystick" || select.id === "left-joystick") {
+                return;
+            }
+            while (select.lastChild) {
+                select.removeChild(select.lastChild);
+            }
+        }
+    }
+
+    function ui_menu_add(menu, label, value) {
+        var select = document.getElementById(UTF8ToString(menu));
+        if (select != null) {
+            if (select.id === "right-joystick" || select.id === "left-joystick") {
+                return;
+            }
+            var el = document.createElement("option");
+            el.textContent = UTF8ToString(label);
+            el.setAttribute("value", value);
+            select.appendChild(el);
+        }
+    }
+
+    function ui_menu_add_str(menu, label, value) {
+        var select = document.getElementById(UTF8ToString(menu));
+        if (select != null) {
+            if (select.id === "right-joystick" || select.id === "left-joystick") {
+                return;
+            }
+            var el = document.createElement("option");
+            el.textContent = UTF8ToString(label);
+            el.setAttribute("value", UTF8ToString(value));
+            select.appendChild(el);
+        }
+    }
+
+    function ui_menu_select(menu, value) {
+        var select = document.getElementById(UTF8ToString(menu));
+        if (select != null) {
+            select.value = value;
+            if (select.id === "machine") {
+                runtimeMachineValue = String(value);
+                runtimeMachineLabel = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent : "";
+                appendBootLog("ui", "Runtime selected machine " + (runtimeMachineLabel || runtimeMachineValue) + ".");
+                refreshBootSummary();
+            }
+        }
+    }
+
+    function ui_menu_select_str(menu, value) {
+        var select = document.getElementById(UTF8ToString(menu));
+        if (select != null) {
+            if (select.id === "right-joystick" || select.id === "left-joystick") {
+                enforceVirtualJoystickOptions();
+                return;
+            }
+            select.value = UTF8ToString(value);
+        }
+    }
+
+    function ui_set_html(elname, value) {
+        var el = document.getElementById(UTF8ToString(elname));
+        if (el != null) {
+            el.innerHTML = UTF8ToString(value);
+        }
+    }
+
+    function ui_set_checkbox(idp, value) {
+        var el = document.getElementById(UTF8ToString(idp));
+        if (el != null) {
+            el.checked = value;
+        }
+    }
+
+    function ui_set_value(idp, value) {
+        var id = UTF8ToString(idp);
+        var idValue = id + "_value";
+        var el = document.getElementById(id);
+        var elValue = document.getElementById(idValue);
+        if (el != null) {
+            el.value = value;
+        }
+        if (elValue != null) {
+            elValue.textContent = value;
+        }
+    }
+
+    function ui_update_tape_input_filename(fnp) {
+        var el = document.getElementById("tape");
+        el.textContent = fnp != 0 ? UTF8ToString(fnp) : "";
+    }
+
+    function ui_update_tape_playing(value) {
+        document.getElementById("tape_play").classList.toggle("hidden", !!value);
+        document.getElementById("tape_pause").classList.toggle("hidden", !value);
+    }
+
+    function ui_update_disk_info(drive, fnp, wb, wp, ncyls, nheads) {
+        var el = document.getElementById("disk" + drive);
+        if (ncyls < 0) {
+            el.textContent = "";
+            drive_filename[drive] = null;
+            return;
+        }
+        el.textContent = ncyls.toString().padStart(2, "0") + "C " + nheads + "H";
+        if (fnp != 0) {
+            var filename = UTF8ToString(fnp);
+            drive_filename[drive] = filename;
+            el.textContent += " | " + filename;
+        }
+    }
+
+    function ui_update_hd_filename(drive, fnp) {
+        var el = document.getElementById("hd" + drive);
+        hd_filename[drive] = null;
+        el.textContent = "";
+        if (fnp != 0) {
+            var filename = UTF8ToString(fnp);
+            hd_filename[drive] = filename;
+            el.textContent = filename;
+        }
+    }
+
+    function ui_set_fullscreen(fs) {
+        Module.is_fullscreen = fs;
+        document.body.classList.toggle("fullscreen", !!fs);
+        wasm_resize();
+    }
+
+    function ui_update_ccr(value) {
+        var el = document.getElementById("ccr");
+        if (el != null) {
+            el.value = value;
+        }
+    }
+
+    function ui_done_initialising() {
+        if (!Module.initial_resize) {
+            Module.initial_resize = 1;
+            wasm_resize();
+        }
+        uiInitialised = true;
+        enforceVirtualJoystickOptions();
+        appendBootLog("ui", "ui_done_initialising() called.");
+        refreshBootSummary();
+    }
+
+    document.addEventListener("click", function(event) {
+        const menu = document.getElementById("page-menu");
+        const anchor = document.querySelector(".menu-anchor");
+        if (!menu || !anchor || menu.classList.contains("hidden")) {
+            return;
+        }
+        if (!anchor.contains(event.target)) {
+            closePageMenu();
+        }
+    });
+
+    window.addEventListener("resize", wasm_resize);
+    loadJoystickReturnMode();
+    loadFireButtonMode();
+    loadGamepadSideMode();
+    loadConfiguredEmulatorSettings();
+    loadKeyboardKeywordState();
+    populateSoftware();
+    buildKeyboard();
+    bindKeyboardKeywordMenu();
+    bindHardwareKeyboard();
+    bindGamepadControls();
+    resetVirtualAxes();
+    enforceVirtualJoystickOptions();
+    setJoystickReturnMode(joystickReturnMode);
+    applyFireButtonMode();
+    applyGamepadSideMode();
+    updateInputModeUi();
+    loadDisplayThemeMode();
+    bindDisplayThemeWatcher();
+    refreshConfiguredEmulatorSettingsUi();
+    showPage("emulator");
+    refreshRomInventory();
+    refreshConfigStatus();
+    refreshBootSummary();
+    setTimeout(wasm_resize, 0);
+</script>
+<script src="xroar.js"></script>
+</body>
+</html>

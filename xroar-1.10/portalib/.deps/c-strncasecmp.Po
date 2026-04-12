@@ -1,0 +1,11 @@
+c-strncasecmp.o: c-strncasecmp.c /usr/include/stdc-predef.h \
+ ../top-config.h ../config.h \
+ /usr/lib/gcc/x86_64-linux-gnu/13/include/stddef.h c-ctype.h \
+ /usr/lib/gcc/x86_64-linux-gnu/13/include/stdbool.h c-strcase.h
+/usr/include/stdc-predef.h:
+../top-config.h:
+../config.h:
+/usr/lib/gcc/x86_64-linux-gnu/13/include/stddef.h:
+c-ctype.h:
+/usr/lib/gcc/x86_64-linux-gnu/13/include/stdbool.h:
+c-strcase.h:

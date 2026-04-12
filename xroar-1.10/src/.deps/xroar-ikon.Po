@@ -1,0 +1,5 @@
+xroar-ikon.o: ikon.c /usr/include/stdc-predef.h ../top-config.h \
+ ../config.h
+/usr/include/stdc-predef.h:
+../top-config.h:
+../config.h:
