@@ -1,6 +1,7 @@
 package com.tazrog.xroar
 
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.AssetManager
@@ -111,14 +112,15 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        applyDisplayMode(readDisplayMode())
+        val displayMode = readDisplayMode()
+        applyDisplayMode(displayMode)
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         romRepository = RomRepository(File(filesDir, "roms"))
         configRepository = ConfigRepository(File(filesDir, "config"))
 
         setContent {
-            XroarTheme {
+            XroarTheme(darkTheme = displayMode != DISPLAY_MODE_LIGHT) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -196,12 +198,11 @@ class MainActivity : ComponentActivity() {
         getSharedPreferences(DISPLAY_PREFS_NAME, MODE_PRIVATE)
 
     private fun readDisplayMode(): String {
-        val mode = displayPreferences().getString(DISPLAY_MODE_KEY, DISPLAY_MODE_SYSTEM)
+        val mode = displayPreferences().getString(DISPLAY_MODE_KEY, DISPLAY_MODE_DARK)
         return when (mode) {
             DISPLAY_MODE_LIGHT,
-            DISPLAY_MODE_DARK,
-            DISPLAY_MODE_SYSTEM -> mode
-            else -> DISPLAY_MODE_SYSTEM
+            DISPLAY_MODE_DARK -> mode
+            else -> DISPLAY_MODE_DARK
         }
     }
 
@@ -209,7 +210,7 @@ class MainActivity : ComponentActivity() {
         val normalized = when (mode) {
             DISPLAY_MODE_LIGHT,
             DISPLAY_MODE_DARK -> mode
-            else -> DISPLAY_MODE_SYSTEM
+            else -> DISPLAY_MODE_DARK
         }
         displayPreferences().edit().putString(DISPLAY_MODE_KEY, normalized).apply()
     }
@@ -217,8 +218,7 @@ class MainActivity : ComponentActivity() {
     private fun applyDisplayMode(mode: String) {
         val nightMode = when (mode) {
             DISPLAY_MODE_LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
-            DISPLAY_MODE_DARK -> AppCompatDelegate.MODE_NIGHT_YES
-            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            else -> AppCompatDelegate.MODE_NIGHT_YES
         }
         AppCompatDelegate.setDefaultNightMode(nightMode)
     }
@@ -226,7 +226,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val DISPLAY_PREFS_NAME = "xroar_display"
         private const val DISPLAY_MODE_KEY = "display_mode"
-        private const val DISPLAY_MODE_SYSTEM = "system"
         private const val DISPLAY_MODE_LIGHT = "light"
         private const val DISPLAY_MODE_DARK = "dark"
     }
@@ -297,7 +296,22 @@ private fun XroarWebView(
                     "AndroidBridge"
                 )
 
-                webViewClient = XroarAssetWebViewClient(activity.assets, romRepository)
+                webViewClient = XroarAssetWebViewClient(
+                    assetManager = activity.assets,
+                    romRepository = romRepository,
+                    onOpenExternalUrl = { uri ->
+                        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                            addCategory(Intent.CATEGORY_BROWSABLE)
+                        }
+                        runCatching {
+                            context.startActivity(intent)
+                        }.getOrElse { error ->
+                            if (error !is ActivityNotFoundException) {
+                                throw error
+                            }
+                        }
+                    }
+                )
                 webChromeClient = object : WebChromeClient() {
                     override fun onShowFileChooser(
                         webView: WebView?,
@@ -321,8 +335,24 @@ private fun XroarWebView(
 
 private class XroarAssetWebViewClient(
     private val assetManager: AssetManager,
-    private val romRepository: RomRepository
+    private val romRepository: RomRepository,
+    private val onOpenExternalUrl: (Uri) -> Unit
 ) : WebViewClient() {
+
+    override fun shouldOverrideUrlLoading(
+        view: WebView?,
+        request: WebResourceRequest?
+    ): Boolean {
+        val url = request?.url ?: return false
+        if (url.scheme == "https" && url.host == HOST) {
+            return false
+        }
+        if (url.scheme == "http" || url.scheme == "https") {
+            onOpenExternalUrl(url)
+            return true
+        }
+        return false
+    }
 
     override fun shouldInterceptRequest(
         view: WebView?,

@@ -6,25 +6,23 @@
 <title>XRoar Android</title>
 <script>
     (function() {
-        var mode = "system";
+        var mode = "dark";
         try {
             if (typeof AndroidBridge !== "undefined" && typeof AndroidBridge.getDisplayMode === "function") {
-                mode = AndroidBridge.getDisplayMode() || "system";
+                mode = AndroidBridge.getDisplayMode() || "dark";
             }
         } catch (_error) {
         }
-        if (mode !== "light" && mode !== "dark" && mode !== "system") {
+        if (mode !== "light" && mode !== "dark") {
             try {
-                mode = window.localStorage.getItem("xroar.displayThemeMode") || "system";
+                mode = window.localStorage.getItem("xroar.displayThemeMode") || "dark";
             } catch (_error) {
-                mode = "system";
+                mode = "dark";
             }
         }
-        var resolved = mode === "light" || mode === "dark"
-            ? mode
-            : ((window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light");
-        document.documentElement.dataset.displayTheme = resolved === "light" ? "light" : "dark";
-        document.documentElement.dataset.displayThemeMode = mode === "light" || mode === "dark" ? mode : "system";
+        var resolved = mode === "light" ? "light" : "dark";
+        document.documentElement.dataset.displayTheme = resolved;
+        document.documentElement.dataset.displayThemeMode = resolved;
     })();
 </script>
 <link rel="stylesheet" href="xroar-wasm.css">
@@ -104,7 +102,7 @@
         <section class="panel">
             <div class="panel-header">
                 <h2>Media</h2>
-                <p>Insert disks, tapes, and hard disk images.</p>
+                <p>Insert disks and tapes.</p>
             </div>
 
             <div class="media-grid">
@@ -157,22 +155,6 @@
                         <label class="button"><input type="file" onchange="file_input_onload(this, load_type.tape, 0)">Insert</label>
                     </div>
                     <div id="tape" class="filename"></div>
-                </div>
-
-                <div class="media-card">
-                    <h3>HD 0</h3>
-                    <div class="card-actions">
-                        <label class="button"><input type="file" onchange="file_input_onload(this, load_type.hd, 0)">Attach</label>
-                    </div>
-                    <div id="hd0" class="filename"></div>
-                </div>
-
-                <div class="media-card">
-                    <h3>HD 1</h3>
-                    <div class="card-actions">
-                        <label class="button"><input type="file" onchange="file_input_onload(this, load_type.hd, 1)">Attach</label>
-                    </div>
-                    <div id="hd1" class="filename"></div>
                 </div>
             </div>
         </section>
@@ -266,13 +248,12 @@
         <section class="panel">
             <div class="panel-header">
                 <h2>Display</h2>
-                <p>Choose whether the app uses the light theme, dark theme, or follows the Android system setting.</p>
+                <p>Choose whether the app uses the light theme or dark theme.</p>
             </div>
             <div class="hardware-grid">
                 <label>
                     <span>Theme</span>
                     <select id="display-theme-mode" onchange="setDisplayThemeMode(this.value)">
-                        <option value="system">System</option>
                         <option value="light">Light</option>
                         <option value="dark">Dark</option>
                     </select>
@@ -337,7 +318,7 @@
                 <p>Official project site: https://www.6809.org.uk/xroar/</p>
             </div>
             <div class="button-grid">
-                <a class="button" href="https://www.6809.org.uk/xroar/" target="_blank" rel="noopener noreferrer">Open XRoar Site</a>
+                <a class="button" href="https://www.6809.org.uk/xroar/" rel="noopener noreferrer">Open XRoar Site</a>
             </div>
         </section>
     </section>
@@ -351,7 +332,7 @@
             <div class="about-copy">
                 <p>1. First import your own ROM files. Open Config and use Import ROM Folder. XRoar needs your firmware ROMs before most machines will boot.</p>
                 <p>2. Return to the Screen page after the ROM import reload finishes. The emulator display is the main home page.</p>
-                <p>3. Use Media to load software. You can insert disks, tapes, hard disk images, or use Quick Load for files that XRoar can auto-detect.</p>
+                <p>3. Use Media to load software. You can insert disks, tapes, or use Quick Load for files that XRoar can auto-detect.</p>
                 <p>4. Use the on-screen keyboard or gamepad on the home screen depending on what the software expects.</p>
                 <p>5. If needed, use Soft Reset or Hard Reset from the top bar to restart the emulated machine.</p>
             </div>
@@ -379,7 +360,7 @@
     var joystickReturnMode = "self-center";
     var fireButtonMode = "two";
     var gamepadSideMode = "right";
-    var displayThemeMode = "system";
+    var displayThemeMode = "dark";
     var configuredMachine = "";
     var configuredRam = "";
     var configuredVdgType = "";
@@ -425,10 +406,6 @@
             }
         } catch (_error) {
         }
-    }
-
-    function resolveSystemTheme() {
-        return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
 
     function loadConfiguredMachine() {
@@ -570,31 +547,31 @@
     }
 
     function loadDisplayThemeMode() {
-        let stored = "system";
+        let stored = "dark";
         if (bridgeAvailable() && typeof AndroidBridge.getDisplayMode === "function") {
             try {
-                stored = AndroidBridge.getDisplayMode() || "system";
+                stored = AndroidBridge.getDisplayMode() || "dark";
             } catch (_error) {
             }
         }
-        if (stored !== "light" && stored !== "dark" && stored !== "system") {
+        if (stored !== "light" && stored !== "dark") {
             try {
-                stored = window.localStorage.getItem("xroar.displayThemeMode") || "system";
+                stored = window.localStorage.getItem("xroar.displayThemeMode") || "dark";
             } catch (_error) {
-                stored = "system";
+                stored = "dark";
             }
         }
-        displayThemeMode = stored === "light" || stored === "dark" ? stored : "system";
+        displayThemeMode = stored === "light" ? "light" : "dark";
         const select = document.getElementById("display-theme-mode");
         if (select) {
             select.value = displayThemeMode;
         }
         document.documentElement.dataset.displayThemeMode = displayThemeMode;
-        applyResolvedDisplayTheme(displayThemeMode === "system" ? resolveSystemTheme() : displayThemeMode);
+        applyResolvedDisplayTheme(displayThemeMode);
     }
 
     function setDisplayThemeMode(mode) {
-        displayThemeMode = mode === "light" || mode === "dark" ? mode : "system";
+        displayThemeMode = mode === "light" ? "light" : "dark";
         const select = document.getElementById("display-theme-mode");
         if (select && select.value !== displayThemeMode) {
             select.value = displayThemeMode;
@@ -610,19 +587,7 @@
             }
         }
         document.documentElement.dataset.displayThemeMode = displayThemeMode;
-        applyResolvedDisplayTheme(displayThemeMode === "system" ? resolveSystemTheme() : displayThemeMode);
-    }
-
-    function bindDisplayThemeWatcher() {
-        if (!window.matchMedia) {
-            return;
-        }
-        const media = window.matchMedia("(prefers-color-scheme: dark)");
-        media.addEventListener("change", function() {
-            if (displayThemeMode === "system") {
-                applyResolvedDisplayTheme(resolveSystemTheme());
-            }
-        });
+        applyResolvedDisplayTheme(displayThemeMode);
     }
 
     function setJoystickReturnMode(mode) {
@@ -2530,7 +2495,6 @@
     applyGamepadSideMode();
     updateInputModeUi();
     loadDisplayThemeMode();
-    bindDisplayThemeWatcher();
     refreshConfiguredEmulatorSettingsUi();
     showPage("emulator");
     refreshRomInventory();
