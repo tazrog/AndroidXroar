@@ -748,7 +748,44 @@ select:hover {
 }
 
 .keyword-library {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
     line-height: 1.6;
+}
+
+.keyword-library-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 6px 8px 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(217, 170, 65, 0.36);
+    background: linear-gradient(180deg, rgba(34, 48, 64, 0.92) 0%, rgba(24, 34, 45, 0.96) 100%);
+    color: #edf3f8;
+}
+
+.keyword-library-label {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.keyword-library-remove {
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: linear-gradient(180deg, rgba(189, 77, 66, 0.96) 0%, rgba(129, 39, 31, 0.98) 100%);
+    color: #fff4ef;
+    font-size: 0.74rem;
+    font-weight: 800;
+}
+
+:root[data-display-theme="light"] .keyboard-panel .keyword-library-item {
+    border: 1px solid rgba(217, 170, 65, 0.36);
+    background: linear-gradient(180deg, rgba(34, 48, 64, 0.92) 0%, rgba(24, 34, 45, 0.96) 100%);
+    color: #edf3f8;
 }
 
 .keyboard-row {
@@ -775,6 +812,75 @@ select:hover {
     font-size: clamp(0.68rem, 1.9vw, 0.88rem);
 }
 
+.key-preview {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 6px);
+    min-width: clamp(44px, 9.7vw, 60px);
+    min-height: clamp(53px, 11.3vw, 71px);
+    padding: 7px 9px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.34);
+    background: linear-gradient(180deg, rgba(255, 251, 244, 0.98) 0%, rgba(233, 226, 214, 0.98) 100%);
+    color: #201a14;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.9);
+    transition: opacity 120ms ease, transform 120ms ease;
+    pointer-events: none;
+    z-index: 4;
+}
+
+.key.preview-visible .key-preview {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+}
+
+.key-preview-main,
+.key-preview-shifted {
+    display: block;
+    line-height: 1;
+    text-align: center;
+}
+
+.key-preview-main {
+    font-size: clamp(1rem, 2.8vw, 1.28rem);
+    font-weight: 800;
+}
+
+.key-preview-stacked {
+    align-items: stretch;
+    justify-content: stretch;
+}
+
+.key-preview-stacked .key-preview-main,
+.key-preview-stacked .key-preview-shifted {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    text-align: left;
+}
+
+.key-preview-stacked .key-preview-shifted {
+    top: 7px;
+    font-size: clamp(0.82rem, 2vw, 0.96rem);
+    font-weight: 800;
+    color: var(--keyboard-shifted-text);
+}
+
+.key-preview-stacked .key-preview-main {
+    bottom: 7px;
+    font-size: clamp(0.92rem, 2.3vw, 1.08rem);
+}
+
+.key-stacked-label {
+    align-items: stretch;
+    justify-content: stretch;
+}
+
 :root[data-display-theme="light"] .keyboard-panel .key {
     border: 1px solid var(--keyboard-key-border);
     background: var(--keyboard-key-bg);
@@ -794,12 +900,28 @@ select:hover {
     font-size: clamp(0.84rem, 2.2vw, 1rem);
 }
 
+.key-upper-left-label {
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+
+.key-upper-left-label .key-main {
+    position: absolute;
+    top: clamp(4px, 0.8vw, 6px);
+    left: clamp(4px, 0.8vw, 6px);
+    z-index: 1;
+}
+
 .key-center-main .key-main {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.key-center-main.key-stacked-label .key-main {
+    inset: auto;
 }
 
 .key-letter {
@@ -811,6 +933,13 @@ select:hover {
     position: absolute;
     top: clamp(6px, 1vw, 8px);
     left: clamp(6px, 1vw, 8px);
+    z-index: 1;
+}
+
+.key-bottom-left-label .key-main {
+    position: absolute;
+    left: clamp(5px, 1vw, 8px);
+    bottom: clamp(3px, 0.7vw, 5px);
     z-index: 1;
 }
 
@@ -833,8 +962,8 @@ select:hover {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(1.32rem, 4vw, 1.72rem);
-    font-weight: 950;
+    font-size: clamp(1.52rem, 4.6vw, 1.98rem);
+    font-weight: 1000;
     line-height: 1;
 }
 
@@ -847,30 +976,34 @@ select:hover {
     opacity: 0.72;
 }
 
-.key-shift-replaces-main .key-main,
-.key-shift-replaces-main .key-shifted {
+.key-stacked-label .key-main,
+.key-stacked-label .key-shifted {
     position: absolute;
-    inset: 0;
+    left: clamp(5px, 1vw, 8px);
+    right: clamp(5px, 1vw, 8px);
     display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
+    justify-content: flex-start;
     line-height: 1;
+    text-align: left;
 }
 
-.key-shift-replaces-main .key-shifted {
+.key-stacked-label .key-shifted {
+    top: clamp(4px, 0.9vw, 6px);
+    right: auto;
+    align-items: flex-start;
+    font-size: clamp(0.62rem, 1.7vw, 0.8rem);
     opacity: 1;
-    display: none;
 }
 
-.key-shift-replaces-main.shift-active .key-main,
-.key-shift-replaces-main.key-held .key-main {
-    display: none;
+.key-stacked-label .key-main {
+    top: auto;
+    bottom: clamp(4px, 0.9vw, 6px);
+    align-items: flex-end;
+    font-size: clamp(0.76rem, 2.05vw, 0.94rem);
 }
 
-.key-shift-replaces-main.shift-active .key-shifted,
-.key-shift-replaces-main.key-held .key-shifted {
-    display: flex;
+.key-center-main:not(.key-stacked-label) .key-main:empty {
+    display: none;
 }
 
 .key.shift-active .key-shifted,
@@ -990,15 +1123,38 @@ body.fullscreen #canvas {
         font-size: 0.72rem;
     }
 
+    .key-preview {
+        min-width: 39px;
+        min-height: 48px;
+        padding: 6px 8px;
+        border-radius: 10px;
+        bottom: calc(100% + 4px);
+    }
+
+    .key-preview-main {
+        font-size: 0.98rem;
+    }
+
+    .key-preview-stacked .key-preview-shifted {
+        font-size: 0.74rem;
+    }
+
+    .key-preview-stacked .key-preview-main {
+        font-size: 0.86rem;
+    }
+
     .key-shifted {
         top: 5px;
         right: 5px;
         font-size: 0.52rem;
     }
 
-    .key-shift-replaces-main .key-main,
-    .key-shift-replaces-main .key-shifted {
-        font-size: 0.9rem;
+    .key-stacked-label .key-shifted {
+        font-size: 0.64rem;
+    }
+
+    .key-stacked-label .key-main {
+        font-size: 0.84rem;
     }
 
     .key-small-label .key-main {
@@ -1006,7 +1162,8 @@ body.fullscreen #canvas {
     }
 
     .key-arrow .key-main {
-        font-size: 1.4rem;
+        font-size: 1.62rem;
+        font-weight: 1000;
     }
 
     .gamepad-button {

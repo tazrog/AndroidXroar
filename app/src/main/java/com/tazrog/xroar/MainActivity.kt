@@ -571,12 +571,12 @@ private class RomRepository(private val rootDir: File) {
     }
 
     fun openFile(fileName: String): InputStream? {
-        val file = File(rootDir, fileName)
+        val file = resolveImportedRom(fileName) ?: return null
         return if (file.isFile) FileInputStream(file) else null
     }
 
     fun readBytes(fileName: String): ByteArray? {
-        val file = File(rootDir, fileName)
+        val file = resolveImportedRom(fileName) ?: return null
         return if (file.isFile) file.readBytes() else null
     }
 
@@ -607,6 +607,14 @@ private class RomRepository(private val rootDir: File) {
             }
             append("]")
         }
+    }
+
+    private fun resolveImportedRom(fileName: String): File? {
+        val sanitizedName = File(fileName).name
+        if (sanitizedName != fileName || sanitizedName.isBlank()) {
+            return null
+        }
+        return File(rootDir, sanitizedName)
     }
 }
 

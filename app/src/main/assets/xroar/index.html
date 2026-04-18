@@ -294,14 +294,14 @@
         <section class="panel">
             <div class="panel-header">
                 <h2>Keyboard Keywords</h2>
-                <p>Add more keywords to the keyboard bar. Tapping a keyword types it directly into XRoar.</p>
+                <p>Edit the keywords shown in the keyboard bar. You can add new ones or remove preinstalled entries.</p>
             </div>
             <div class="keyword-settings">
                 <div class="keyword-add-row">
                     <input id="keyword-input" type="text" placeholder="Add keyword">
-                    <button class="button" type="button" onclick="addCustomKeywordFromSettings()">Add</button>
+                    <button class="button" type="button" onclick="addKeywordFromSettings()">Add</button>
                 </div>
-                <div id="keyword-library" class="keyword-library">Custom keywords: none.</div>
+                <div id="keyword-library" class="keyword-library">No keywords configured.</div>
             </div>
         </section>
     </section>
@@ -315,6 +315,9 @@
             <div class="about-copy">
                 <p>XRoar is the Dragon and Tandy 8-bit computer emulator project by Ciaran Anscomb.</p>
                 <p>Credit and thanks go to the original XRoar project for the emulator core used here.</p>
+                <p>AndroidXroar and the bundled XRoar core are distributed under the GNU General Public License, version 3.</p>
+                <p>This app stores imported ROMs and config files only in app-private storage and does not back them up to Android cloud backup or device transfer.</p>
+                <p>This software is provided without warranty.</p>
                 <p>Official project site: https://www.6809.org.uk/xroar/</p>
             </div>
             <div class="button-grid">
@@ -327,14 +330,16 @@
         <section class="panel">
             <div class="panel-header">
                 <h2>Info</h2>
-                <p>Quick start help for Android XRoar.</p>
+                <p>How to use Android XRoar.</p>
             </div>
             <div class="about-copy">
-                <p>1. First import your own ROM files. Open Config and use Import ROM Folder. XRoar needs your firmware ROMs before most machines will boot.</p>
-                <p>2. Return to the Screen page after the ROM import reload finishes. The emulator display is the main home page.</p>
-                <p>3. Use Media to load software. You can insert disks, tapes, or use Quick Load for files that XRoar can auto-detect.</p>
-                <p>4. Use the on-screen keyboard or gamepad on the home screen depending on what the software expects.</p>
-                <p>5. If needed, use Soft Reset or Hard Reset from the top bar to restart the emulated machine.</p>
+                <p>1. Open Config first and use Import ROM Folder to select a folder that contains your machine ROM files. XRoar needs those ROMs before most systems will boot.</p>
+                <p>2. Stay on the Config page if you want to set a startup machine, RAM size, or VDG chip override, then use Apply And Reload. You can also import an `xroar.conf` file there if you want XRoar to preload your own config.</p>
+                <p>3. After the ROM import or config reload finishes, return to Screen. That is the main emulator display.</p>
+                <p>4. Use Media to load software. You can insert disks and tapes, or use Quick Load for files that XRoar can auto-detect and start.</p>
+                <p>5. Use the input toggle on the Screen page to switch between the on-screen keyboard and the gamepad. The CLEAR key requires a long press to send CLEAR.</p>
+                <p>6. Open Settings to change the gamepad layout side, choose one-button or two-button fire mode, adjust joystick behavior, edit keyboard keywords, and change display mode.</p>
+                <p>7. Use Soft Reset or Hard Reset from the top bar if you need to restart the emulated machine after changing media or startup settings.</p>
             </div>
         </section>
     </section>
@@ -858,7 +863,7 @@
             { label: "7", shiftedLabel: "'", scanCode: 0x24, shiftReplacesLabel: true },
             { label: "8", shiftedLabel: "(", scanCode: 0x25, shiftReplacesLabel: true },
             { label: "9", shiftedLabel: ")", scanCode: 0x26, shiftReplacesLabel: true },
-            { label: "0", scanCode: 0x27, centerLabel: true },
+            { label: "0", scanCode: 0x27 },
             { label: ":", shiftedLabel: "*", scanCode: 0x2d, dkeyCode: 0x0a, width: 0.95, shiftReplacesLabel: true },
             { label: "-", shiftedLabel: "=", scanCode: 0x2e, dkeyCode: 0x0d, width: 1, shiftReplacesLabel: true },
             { label: "BREAK", scanCode: 0x29, width: 1.8 },
@@ -906,13 +911,13 @@
         [
             { label: "↑", scanCode: 0x52, width: 0.9 },
             { label: "↓", scanCode: 0x51, width: 0.9 },
-            { label: "SPACE", scanCode: 0x2c, width: 5.1 },
+            { label: "", scanCode: 0x2c, width: 5.1 },
             { label: "←", scanCode: 0x50, width: 0.9 },
             { label: "→", scanCode: 0x4f, width: 0.9 },
         ],
     ];
 
-    const keyboardKeywords = [
+    const defaultKeyboardKeywords = [
         "CLOAD\"",
         "CSAVE\"",
         "DIR",
@@ -928,7 +933,7 @@
         "SAVE\"",
     ];
     const KEYWORD_STORAGE_KEY = "xroar.keyboardKeywords";
-    let customKeyboardKeywords = [];
+    let keyboardKeywords = [];
     let numericKeywordValue = 10;
 
     function setStatus(text, isError) {
@@ -946,43 +951,67 @@
         try {
             const storedKeywords = JSON.parse(window.localStorage.getItem(KEYWORD_STORAGE_KEY) || "[]");
             if (Array.isArray(storedKeywords)) {
-                customKeyboardKeywords = storedKeywords
+                keyboardKeywords = storedKeywords
                     .map(function(keyword) { return String(keyword || "").trim().toUpperCase(); })
                     .filter(Boolean);
             }
         } catch (_error) {
-            customKeyboardKeywords = [];
+            keyboardKeywords = [];
+        }
+        if (!keyboardKeywords.length) {
+            keyboardKeywords = defaultKeyboardKeywords.slice();
+        } else {
+            keyboardKeywords = Array.from(new Set(keyboardKeywords));
         }
         numericKeywordValue = 10;
     }
 
     function persistKeyboardKeywordState() {
         try {
-            window.localStorage.setItem(KEYWORD_STORAGE_KEY, JSON.stringify(customKeyboardKeywords));
+            window.localStorage.setItem(KEYWORD_STORAGE_KEY, JSON.stringify(keyboardKeywords));
         } catch (_error) {
         }
     }
 
     function getSortedKeyboardKeywords() {
-        const merged = keyboardKeywords.concat(customKeyboardKeywords);
-        return Array.from(new Set(merged)).sort(function(a, b) {
+        return keyboardKeywords.slice().sort(function(a, b) {
             return a.localeCompare(b);
         });
     }
 
-    function refreshCustomKeywordLibrary() {
+    function refreshKeywordLibrary() {
         const library = document.getElementById("keyword-library");
         if (!library) {
             return;
         }
-        if (!customKeyboardKeywords.length) {
-            library.textContent = "Custom keywords: none.";
+        while (library.lastChild) {
+            library.removeChild(library.lastChild);
+        }
+        const sorted = getSortedKeyboardKeywords();
+        if (!sorted.length) {
+            library.textContent = "No keywords configured.";
             return;
         }
-        const sorted = customKeyboardKeywords.slice().sort(function(a, b) {
-            return a.localeCompare(b);
+        sorted.forEach(function(keyword) {
+            const chip = document.createElement("div");
+            chip.className = "keyword-library-item";
+
+            const label = document.createElement("span");
+            label.className = "keyword-library-label";
+            label.textContent = keyword;
+            chip.appendChild(label);
+
+            const removeButton = document.createElement("button");
+            removeButton.type = "button";
+            removeButton.className = "keyword-library-remove";
+            removeButton.textContent = "Delete";
+            removeButton.addEventListener("click", function() {
+                removeKeyword(keyword);
+            });
+            chip.appendChild(removeButton);
+
+            library.appendChild(chip);
         });
-        library.textContent = "Custom keywords: " + sorted.join(", ");
     }
 
     function typeKeywordIntoXroar(keyword) {
@@ -1041,29 +1070,43 @@
         });
     }
 
-    function addCustomKeyword(keyword) {
+    function addKeyword(keyword) {
         const normalized = String(keyword || "").trim().toUpperCase();
         if (!normalized) {
             return false;
         }
-        if (keyboardKeywords.indexOf(normalized) !== -1 || customKeyboardKeywords.indexOf(normalized) !== -1) {
+        if (keyboardKeywords.indexOf(normalized) !== -1) {
             return false;
         }
-        customKeyboardKeywords.push(normalized);
+        keyboardKeywords.push(normalized);
         persistKeyboardKeywordState();
-        refreshCustomKeywordLibrary();
+        refreshKeywordLibrary();
         renderKeyboardKeywordBar();
         return true;
     }
 
-    function addCustomKeywordFromSettings() {
+    function removeKeyword(keyword) {
+        const index = keyboardKeywords.indexOf(keyword);
+        if (index === -1) {
+            return false;
+        }
+        keyboardKeywords.splice(index, 1);
+        persistKeyboardKeywordState();
+        refreshKeywordLibrary();
+        renderKeyboardKeywordBar();
+        setStatus("Removed keyboard keyword " + keyword + ".", false);
+        return true;
+    }
+
+    function addKeywordFromSettings() {
         const input = document.getElementById("keyword-input");
         if (!input) {
             return;
         }
-        const added = addCustomKeyword(input.value);
+        const normalized = input.value.trim().toUpperCase();
+        const added = addKeyword(input.value);
         if (added) {
-            setStatus("Added keyboard keyword " + input.value.trim().toUpperCase() + ".", false);
+            setStatus("Added keyboard keyword " + normalized + ".", false);
             input.value = "";
             return;
         }
@@ -1313,6 +1356,30 @@
         });
     }
 
+    function showKeyPreview(button) {
+        if (!button) {
+            return;
+        }
+        if (button.__previewHideTimer) {
+            clearTimeout(button.__previewHideTimer);
+            button.__previewHideTimer = null;
+        }
+        button.classList.add("preview-visible");
+    }
+
+    function hideKeyPreview(button) {
+        if (!button) {
+            return;
+        }
+        if (button.__previewHideTimer) {
+            clearTimeout(button.__previewHideTimer);
+        }
+        button.__previewHideTimer = setTimeout(function() {
+            button.classList.remove("preview-visible");
+            button.__previewHideTimer = null;
+        }, 120);
+    }
+
     function buildLockedOption(select, value, label) {
         while (select.lastChild) {
             select.removeChild(select.lastChild);
@@ -1357,6 +1424,12 @@
                 if (key.label === "BREAK") {
                     button.classList.add("key-break");
                 }
+                if (key.label === "@") {
+                    button.classList.add("key-upper-left-label");
+                }
+                if (key.label === "0") {
+                    button.classList.add("key-bottom-left-label");
+                }
                 if (key.label === "↑" || key.label === "↓" || key.label === "←" || key.label === "→") {
                     button.classList.add("key-arrow");
                 }
@@ -1375,9 +1448,7 @@
                 button.dataset.baseLabel = key.label;
                 if (key.shiftedLabel) {
                     button.dataset.shiftedLabel = key.shiftedLabel;
-                }
-                if (key.shiftReplacesLabel) {
-                    button.classList.add("key-shift-replaces-main");
+                    button.classList.add("key-stacked-label");
                 }
                 if (key.centerLabel) {
                     button.classList.add("key-center-main");
@@ -1397,9 +1468,25 @@
                 main.className = "key-main";
                 main.textContent = key.label;
                 button.appendChild(main);
+                const preview = document.createElement("div");
+                preview.className = "key-preview";
+                if (key.shiftedLabel) {
+                    preview.classList.add("key-preview-stacked");
+                    const previewShifted = document.createElement("span");
+                    previewShifted.className = "key-preview-shifted";
+                    previewShifted.textContent = key.shiftedLabel;
+                    preview.appendChild(previewShifted);
+                }
+                const previewMain = document.createElement("span");
+                previewMain.className = "key-preview-main";
+                previewMain.textContent = key.label || "SPACE";
+                preview.appendChild(previewMain);
+                button.appendChild(preview);
                 bindPressable(button, function() {
+                    showKeyPreview(button);
                     dispatchVirtualKeyPress(key);
                 }, function() {
+                    hideKeyPreview(button);
                     dispatchVirtualKeyRelease(key);
                 }, {
                     haptic: true,
@@ -1585,11 +1672,11 @@
             input.addEventListener("keydown", function(event) {
                 if (event.key === "Enter") {
                     event.preventDefault();
-                    addCustomKeywordFromSettings();
+                    addKeywordFromSettings();
                 }
             });
         }
-        refreshCustomKeywordLibrary();
+        refreshKeywordLibrary();
         renderKeyboardKeywordBar();
     }
 
@@ -1967,7 +2054,7 @@
             softwarePublisher.textContent = program.publisher ? "Publisher: " + program.publisher : "";
         }
         if (softwareText) {
-            softwareText.innerHTML = program.text ? program.text : "";
+            softwareText.textContent = program.text ? program.text : "";
         }
 
         if ("basic" in program) {
@@ -2382,7 +2469,7 @@
     function ui_set_html(elname, value) {
         var el = document.getElementById(UTF8ToString(elname));
         if (el != null) {
-            el.innerHTML = UTF8ToString(value);
+            el.textContent = UTF8ToString(value);
         }
     }
 

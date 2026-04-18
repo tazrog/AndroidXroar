@@ -75,6 +75,18 @@ Imported ROM folders are stored via Android's document provider access, and impo
 
 The bundled XRoar source tree documents the expected ROM filenames and supported machines in [xroar-1.10/README](xroar-1.10/README).
 
+## Using The App
+
+1. Open the `Config` page first and use `Import ROM Folder` to select a folder containing your XRoar ROM files.
+2. On the same page, optionally choose a startup machine, RAM size, and VDG type, then use `Apply And Reload` to restart with those overrides.
+3. If you already use an `xroar.conf` file, use `Import Config` on the `Config` page to preload that file inside the app.
+4. After ROM import or reload completes, return to the `Screen` page to use the emulator.
+5. Open the `Media` page to insert disks or tapes, or use `Quick Load` to open files that XRoar can auto-detect.
+6. On the `Screen` page, use the input toggle to switch between the on-screen keyboard and the gamepad.
+7. The on-screen `CLEAR` key requires a long press.
+8. Open `Settings` to change the gamepad side, choose one-button or two-button fire mode, adjust joystick behavior, edit keyboard keywords, and change display mode.
+9. Use `Soft Reset` or `Hard Reset` from the top bar when you need to restart the emulated machine.
+
 ## Rebuilding The WASM Assets
 
 If you update the vendored XRoar sources or want to regenerate the emulator runtime, use:
