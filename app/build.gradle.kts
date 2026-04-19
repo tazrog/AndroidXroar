@@ -84,7 +84,8 @@ dependencies {
 
 tasks.register<Copy>("packageNamedReleaseApk") {
     dependsOn("assembleRelease")
-    from(layout.buildDirectory.file("outputs/apk/release/app-release.apk"))
+    val releaseApkName = if (keystorePropertiesFile.exists()) "app-release.apk" else "app-release-unsigned.apk"
+    from(layout.buildDirectory.file("outputs/apk/release/$releaseApkName"))
     into(rootProject.layout.projectDirectory.dir("release"))
     rename { "AndroidXroar.apk" }
 }
