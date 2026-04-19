@@ -56,6 +56,10 @@
     </div>
 </nav>
 <main class="shell">
+    <section id="status-banner" class="panel">
+        <div id="status-text" class="filename">Waiting for the emulator runtime.</div>
+    </section>
+
     <section id="page-emulator" class="page-card active">
         <section id="display-panel" class="canvas-panel" onclick="toggleInputMode()">
             <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
@@ -242,6 +246,7 @@
             </div>
             <div id="config-library" class="filename rom-library">No imported config file.</div>
         </section>
+
     </section>
 
     <section id="page-settings" class="page-card hidden">
@@ -765,6 +770,7 @@
         });
         const selectedMachine = configuredMachine || profile.machine;
         const args = [
+            "-ui", "wasm",
             "-rompath", ".",
             "-no-vo-colour-killer",
             "-no-disk-auto-os9",
@@ -1230,7 +1236,8 @@
         }
         if (!roms.length) {
             el.textContent = "No ROMs imported yet.";
-            if (document.getElementById("status-text").textContent.indexOf("Waiting for the emulator runtime.") === -1) {
+            const statusText = document.getElementById("status-text");
+            if (!statusText || statusText.textContent.indexOf("Waiting for the emulator runtime.") === -1) {
                 setStatus("Import your XRoar firmware ROM folder, then reload the emulator.", true);
             }
             return;
@@ -2005,7 +2012,6 @@
         };
         fr.readAsArrayBuffer(file);
     }
-
     function start_selected_software(select, value) {
         resumeAudio();
         setTimeout(function() { select.value = ""; }, 1000);
@@ -2401,6 +2407,9 @@
             Module.canvas.width = Math.max(320, maxWidth);
             Module.canvas.height = Math.round(Module.canvas.width * 0.75);
         }
+        if (typeof Module.ccall !== "function") {
+            return;
+        }
         Module.ccall("wasm_resize", null, [ "number", "number" ], [ Module.canvas.width, Module.canvas.height ]);
     }
 
@@ -2495,12 +2504,21 @@
 
     function ui_update_tape_input_filename(fnp) {
         var el = document.getElementById("tape");
+        if (!el) {
+            return;
+        }
         el.textContent = fnp != 0 ? UTF8ToString(fnp) : "";
     }
 
     function ui_update_tape_playing(value) {
-        document.getElementById("tape_play").classList.toggle("hidden", !!value);
-        document.getElementById("tape_pause").classList.toggle("hidden", !value);
+        var play = document.getElementById("tape_play");
+        var pause = document.getElementById("tape_pause");
+        if (play) {
+            play.classList.toggle("hidden", !!value);
+        }
+        if (pause) {
+            pause.classList.toggle("hidden", !value);
+        }
     }
 
     function ui_update_disk_info(drive, fnp, wb, wp, ncyls, nheads) {
@@ -2521,6 +2539,9 @@
     function ui_update_hd_filename(drive, fnp) {
         var el = document.getElementById("hd" + drive);
         hd_filename[drive] = null;
+        if (!el) {
+            return;
+        }
         el.textContent = "";
         if (fnp != 0) {
             var filename = UTF8ToString(fnp);
