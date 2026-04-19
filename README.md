@@ -46,8 +46,11 @@ This project also defines a packaging task that copies the release APK to a pred
 If `keystore.properties` is present, the release build is signed with that keystore. Otherwise Gradle produces an unsigned release APK and the packaging task still copies it to the release folder.
 
 The generated file is copied to [release](release) as `AndroidXroar.apk`.
+The repository already includes the latest built APK in that folder.
 
 ## Release APK
+
+The latest built APK is already available in [release](release) as `AndroidXroar.apk`.
 
 After running:
 
@@ -59,8 +62,8 @@ you can find the installable APK at [release](release). The `release` directory 
 
 ## Download And Install On Android
 
-1. Build the release APK with `./gradlew packageNamedReleaseApk`.
-2. Open the [release](release) folder and copy `AndroidXroar.apk` to your Android device.
+1. Open the [release](release) folder and copy `AndroidXroar.apk` to your Android device.
+2. If you want to regenerate it first, run `./gradlew packageNamedReleaseApk`.
 3. On the Android device, open the APK from the Files app or Downloads.
 4. If Android blocks the install, allow installs from the app you used to open the APK when prompted.
 5. Continue the installer prompts and finish the installation.
